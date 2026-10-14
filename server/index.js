@@ -1,8 +1,11 @@
+import http from 'node:http';
 import { WebSocketServer } from 'ws';
 
-const PORT = 8787;
+const PORT = process.env.PORT || 8787;
 const GAME_IDS = new Set(['artillery', 'connect4']);
-const wss = new WebSocketServer({ port: PORT, host: '0.0.0.0' });
+const server = http.createServer((req, res) => { res.writeHead(200); res.end('ChatFi matchmaking server'); });
+const wss = new WebSocketServer({ server });
+server.listen(PORT, '0.0.0.0');
 
 const clients = new Map(); // ws -> { name, game, room, side, lastChat }
 const queues = {};         // gameId -> [ws]

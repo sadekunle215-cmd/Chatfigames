@@ -2,7 +2,7 @@ const listeners = {};
 let ws = null, up = false, name = 'Player';
 
 const wsUrl = () =>
-  (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + ':8787';
+  import.meta.env.VITE_WS_URL || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + ':8787';
 
 export function on(type, cb) {
   (listeners[type] = listeners[type] || []).push(cb);
