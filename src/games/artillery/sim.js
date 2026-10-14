@@ -1,5 +1,6 @@
 export const W = 800, H = 450, R = 45, G = 0.15;
 export const LIVES = 5, TUBE = 30, PIVOT = 24;
+export const EX = 420, VX = 120; // extra scenery drawn beyond the play area
 const PI = 3.141592653589793;
 
 function rng(seed) {

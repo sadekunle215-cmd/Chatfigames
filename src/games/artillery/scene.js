@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { W, H, R, LIVES, TUBE, PIVOT, makeState, simulate } from './sim.js';
 import { installScenery } from './scenery.js';
 import { installBot } from './bot.js';
+import { installWide } from './wide.js';
 
 const K = 1.5; // unit scale
 const FONT = 'Space Grotesk, Inter, sans-serif';
@@ -191,7 +192,7 @@ class Duel extends Phaser.Scene {
     this.input.on('pointerdown', (p) => {
       if (this.state.winner !== null) { if (!this.online) this.scene.restart(); return; }
       if (this.busy || !this.myTurn()) return;
-      this.aim = { sx: p.x, sy: p.y, angle: this.barrel[this.state.turn], power: 0 };
+      this.aim = { sx: this.wp(p).x, sy: this.wp(p).y, angle: this.barrel[this.state.turn], power: 0 };
     });
     this.input.on('pointermove', (p) => this.updateAim(p));
     this.input.on('pointerup', (p) => {
@@ -204,6 +205,7 @@ class Duel extends Phaser.Scene {
       this.fire(a.angle, a.power);
     });
 
+    this.bindResize();
     if (this.online) this.online.onMove((m) => this.remoteMove(m));
     this.refreshUi();
   }
@@ -231,7 +233,7 @@ class Duel extends Phaser.Scene {
 
   updateAim(p) {
     if (!this.aim) return;
-    const dx = this.aim.sx - p.x, dy = this.aim.sy - p.y;
+    const q = this.wp(p), dx = this.aim.sx - q.x, dy = this.aim.sy - q.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     let ang = Math.round((Math.atan2(-dy, dx) * 180) / Math.PI);
     if (ang < 0) ang = dx >= 0 ? 0 : 180;
@@ -281,6 +283,7 @@ class Duel extends Phaser.Scene {
       onComplete: () => {
         this.rocket = null;
         if (res.impact) this.blast(res.impact[0], res.impact[1]);
+        else this.emit('smoke', path[last][0], path[last][1], 4);
         this.state = res.next;
         this.drawTerrain();
         this.hitCheck(prev, res.next);
@@ -443,7 +446,7 @@ class Duel extends Phaser.Scene {
     g.clear();
     for (const c of this.clouds) {
       c.x += c.v * dt;
-      if (c.x > W + 90) c.x = -90;
+      if (c.x > W + 520) c.x = -520;
       [[0, 0, 26], [24, -8, 22], [-24, -4, 20], [46, 2, 17], [-44, 4, 15]].forEach(([px, py, r]) => {
         g.fillStyle(0xdbe6f0, 0.5);
         g.fillEllipse(c.x + px * c.s, c.y + py * c.s + 5, r * 2.1 * c.s, r * 1.3 * c.s);
@@ -550,7 +553,7 @@ class Duel extends Phaser.Scene {
     const g = this.hud, s = this.state;
     g.clear();
     for (let i = 0; i < 2; i++) {
-      const tm = TEAM[i], bx = i === 0 ? 10 : W - 160, by = 8, k = s.tanks[i];
+      const tm = TEAM[i], bx = i === 0 ? this.hudL : this.hudR, by = this.hudT, k = s.tanks[i];
       g.fillStyle(0x0b1a2b, 0.62);
       g.fillRoundedRect(bx, by, 150, 62, 14);
       if (s.winner === null && s.turn === i) {
@@ -566,6 +569,7 @@ class Duel extends Phaser.Scene {
 
   update(time, delta) {
     const dt = Math.min(delta / 1000, 0.05);
+    this.updateView();
     this.stepClouds(dt);
     this.stepScenery(dt);
     this.stepBot(dt);
@@ -596,4 +600,5 @@ class Duel extends Phaser.Scene {
 
 installScenery(Duel);
 installBot(Duel);
+installWide(Duel);
 export { Duel };

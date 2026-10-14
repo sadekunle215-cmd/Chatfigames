@@ -33,7 +33,7 @@ export default {
       width: W,
       height: H,
       transparent: true,
-      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+      scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
       scene: Duel,
       callbacks: { preBoot: (g) => g.registry.set('opts', opts || {}) },
     });

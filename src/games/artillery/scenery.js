@@ -1,4 +1,4 @@
-import { W, H, R } from './sim.js';
+import { W, H, R, EX, VX } from './sim.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ch = (c, s) => (c >> s) & 255;
@@ -70,6 +70,10 @@ const methods = {
     this.farFires = [];
     this.farAcc = 0;
     this.scorch = [];
+    for (let i = 0; i < 6; i++) {
+      this.clouds.push({ x: -EX + i * 70, y: 50 + ((i * 37) % 120), s: 0.7 + (i % 3) * 0.25, v: 3 + (i % 4) });
+      this.clouds.push({ x: W + 40 + i * 70, y: 60 + ((i * 53) % 110), s: 0.7 + (i % 3) * 0.25, v: 3 + (i % 4) });
+    }
 
     const rnd = mulberry((this.state.seed ^ 0x9e3779b1) >>> 0);
     const h = this.state.heights;
@@ -98,7 +102,7 @@ const methods = {
     // grass blades and wildflowers
     this.blades = [];
     const fcols = [0xfff3a0, 0xffffff, 0xffb3d1];
-    for (let x = 2; x < W - 2; x += 3) {
+    for (let x = -EX + 2; x < W + EX - 2; x += 3) {
       const bx = x + Math.floor(rnd() * 2), m = matAt(bx);
       this.blades.push({
         x: bx, len: 3 + rnd() * 5, tilt: (rnd() - 0.5) * 3, alt: rnd() < 0.5 ? 1 : 0,
@@ -110,8 +114,8 @@ const methods = {
     this.stones = [];
     const stoneCols = [0x6e6a64, 0x7c776f, 0x5d5955, 0x8a8379];
     for (let i = 0; i < 70; i++) {
-      const x = Math.floor(rnd() * W);
-      this.stones.push({ x, y: h[x] + 24 + rnd() * 150, r: 2.5 + rnd() * 4.5, c: stoneCols[Math.floor(rnd() * 4)] });
+      const x = Math.floor(rnd() * (W + 2 * EX)) - EX;
+      this.stones.push({ x, y: h[clamp(x, 0, W - 1)] + 24 + rnd() * 150, r: 2.5 + rnd() * 4.5, c: stoneCols[Math.floor(rnd() * 4)] });
     }
 
     // scenery props on the field
@@ -145,7 +149,7 @@ const methods = {
   // Ruined town on the distant hills, with a road and fires
   skyline(g) {
     const rnd = mulberry((this.state.seed ^ 0x51ed270b) >>> 0);
-    for (let x = 12; x < W - 40; x += 46 + Math.floor(rnd() * 30)) {
+    for (let x = -EX + 12; x < W + EX - 40; x += 46 + Math.floor(rnd() * 30)) {
       const w = 26 + rnd() * 26, hgt = 26 + rnd() * 52, base = ridgeY(x) + 8, top = base - hgt;
       poly(g, 0x4b6074, 1, [
         [x, base], [x, top + rnd() * 10], [x + w * 0.3, top - rnd() * 6], [x + w * 0.5, top + 8 + rnd() * 14],
@@ -160,8 +164,8 @@ const methods = {
     if (!this.farFires.length) this.farFires.push([400, 215]);
     g.lineStyle(3, 0x3a4654, 1);
     g.beginPath();
-    g.moveTo(0, ridgeY(0) + 11);
-    for (let x = 8; x <= W; x += 8) g.lineTo(x, ridgeY(x) + 11);
+    g.moveTo(-EX, ridgeY(-EX) + 11);
+    for (let x = -EX + 8; x <= W + EX; x += 8) g.lineTo(x, ridgeY(x) + 11);
     g.strokePath();
   },
 
