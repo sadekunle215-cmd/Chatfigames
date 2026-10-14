@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { W, H, R, LIVES, TUBE, PIVOT, makeState, simulate } from './sim.js';
 import { installScenery } from './scenery.js';
+import { installBot } from './bot.js';
 
 const K = 1.5; // unit scale
 const FONT = 'Space Grotesk, Inter, sans-serif';
@@ -146,6 +147,7 @@ class Duel extends Phaser.Scene {
     const opts = this.registry.get('opts') || {};
     this.online = opts.online || null;
     this.audio = opts.audio || null;
+    this.bot = opts.bot ? { side: opts.bot.side == null ? 1 : opts.bot.side, shots: 0, wait: null } : null;
     this.state = makeState(this.online ? this.online.seed : (Math.random() * 4294967296) >>> 0);
     this.barrel = [60, 120];
     this.busy = false;
@@ -176,7 +178,7 @@ class Duel extends Phaser.Scene {
       .text(W / 2, 14, '', { fontFamily: FONT, fontSize: '18px', fontStyle: 'bold', color: '#ffffff', stroke: '#0b1a2b', strokeThickness: 4 })
       .setOrigin(0.5, 0).setDepth(10);
     this.names = [0, 1].map((i) => {
-      const label = this.online ? (i === this.online.side ? 'YOU' : 'ENEMY') : 'P' + (i + 1);
+      const label = this.bot ? (i === 0 ? 'YOU' : 'BOT') : this.online ? (i === this.online.side ? 'YOU' : 'ENEMY') : 'P' + (i + 1);
       return this.add
         .text(i === 0 ? 80 : W - 90, 16, label, { fontFamily: FONT, fontSize: '13px', fontStyle: 'bold', color: '#ffffff' })
         .setDepth(10);
@@ -566,6 +568,7 @@ class Duel extends Phaser.Scene {
     const dt = Math.min(delta / 1000, 0.05);
     this.stepClouds(dt);
     this.stepScenery(dt);
+    this.stepBot(dt);
 
     this.state.tanks.forEach((k) => {
       if (k.lives > 0) return;
@@ -592,4 +595,5 @@ class Duel extends Phaser.Scene {
 }
 
 installScenery(Duel);
+installBot(Duel);
 export { Duel };

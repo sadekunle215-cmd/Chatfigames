@@ -143,35 +143,47 @@ function showMode(g) {
   bg.innerHTML =
     '<div class="sheet"><h3></h3><p>Choose how to play</p>' +
     '<button class="btn primary" id="m-online">Play online</button>' +
-    '<button class="btn ghost" id="m-local">Play on this phone</button></div>';
+    '<button class="btn ghost" id="m-bot">Play vs bot</button>' +
+    '<button class="btn ghost" id="m-local">Play on this phone (2 players)</button></div>';
   bg.querySelector('h3').textContent = g.name;
   bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
   bg.querySelector('#m-online').addEventListener('click', () => { bg.remove(); startSearch(g); });
   bg.querySelector('#m-local').addEventListener('click', () => { bg.remove(); openGame(g); });
+  const botBtn = bg.querySelector('#m-bot');
+  if (g.bot) botBtn.addEventListener('click', () => { bg.remove(); openGame(g, null, true); });
+  else botBtn.remove();
 }
 
 function startSearch(g) {
-  if (!isOnline()) { toast("Can't reach the game server. Try again in a moment."); return; }
+  if (!isOnline()) { toast('Server unreachable. Starting a game vs the bot.'); openGame(g, null, true); return; }
   teardown();
   app.innerHTML =
     '<div class="search"><div class="spinner"></div><h2>Finding an opponent…</h2>' +
-    '<p id="sp"></p><button class="pill dark" id="cancel">Cancel</button></div>';
+    '<p id="sp"></p><button class="pill dark" id="cancel">Cancel</button>' +
+    '<button class="pill light" id="botbtn" style="display:none;border:1px solid #e3e3df">No one yet? Play vs bot</button></div>';
   const sp = document.getElementById('sp');
   const upd = () => { sp.textContent = g.name + ' · ' + getOnline(g.id) + ' in this game right now'; };
   upd();
   cleanups.push(on('presence', upd));
   cleanups.push(on('matched', (m) => { audio.play('match'); openGame(g, m); }));
   send('queue', { game: g.id });
+  const botTimer = setTimeout(() => {
+    const bb = document.getElementById('botbtn');
+    if (bb) bb.style.display = '';
+  }, 12000);
+  cleanups.push(() => clearTimeout(botTimer));
+  document.getElementById('botbtn').addEventListener('click', () => { send('cancel'); openGame(g, null, true); });
   document.getElementById('cancel').addEventListener('click', () => { send('cancel'); showLobby(); });
 }
 
-function openGame(g, match) {
+function openGame(g, match, vsBot) {
   teardown();
   app.innerHTML =
     '<div class="stage"><button class="back" id="back">‹ Lobby</button><div id="host"></div></div>';
   const stage = app.querySelector('.stage');
   const opts = { audio };
+  if (vsBot) opts.bot = { side: 1 };
 
   if (match) {
     opts.online = {

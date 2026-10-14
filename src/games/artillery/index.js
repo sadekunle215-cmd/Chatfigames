@@ -9,6 +9,7 @@ export default {
   tier: 'verified',
   orientation: 'landscape',
   ambient: 'war',
+  bot: true,
   color: '#a3e635',
 
   // Pure rules: same seed + same moves = same result on every device

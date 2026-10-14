@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLS, ROWS, init, step, winner } from './engine.js';
+import { pickMove } from './bot.js';
 
 const CELL = 64, W = 480, H = 560;
 const X0 = (W - COLS * CELL) / 2, Y0 = 120;
@@ -10,6 +11,7 @@ class C4 extends Phaser.Scene {
     const opts = this.registry.get('opts');
     this.online = opts.online || null;
     this.audio = opts.audio || null;
+    this.bot = opts.bot ? { side: 1, wait: null } : null;
     this.state = init();
     this.busy = false;
     this.hover = -1;
@@ -17,7 +19,8 @@ class C4 extends Phaser.Scene {
     const font = { fontFamily: 'Space Grotesk, Inter, sans-serif', color: '#111111' };
     this.ui = this.add.text(W / 2, 48, '', Object.assign({ fontSize: '22px' }, font)).setOrigin(0.5);
     this.sub = this.add.text(W / 2, 80, '', Object.assign({ fontSize: '14px' }, font)).setOrigin(0.5).setAlpha(0.6);
-    if (this.online) this.sub.setText('You play ' + (this.online.side === 0 ? 'black' : 'gray'));
+    if (this.bot) this.sub.setText('You play black · Bot plays gray');
+    else if (this.online) this.sub.setText('You play ' + (this.online.side === 0 ? 'black' : 'gray'));
     this.input.on('pointermove', (p) => { this.hover = this.colAt(p.x); this.render(); });
     this.input.on('pointerdown', (p) => this.tap(p));
     if (this.online) this.online.onMove((m) => this.remoteMove(m));
@@ -35,10 +38,22 @@ class C4 extends Phaser.Scene {
 
   endSound(w) {
     if (w === 'draw') return;
-    this.sfx(this.online ? (w === this.online.side ? 'win' : 'lose') : 'win');
+    this.sfx(this.bot ? (w === 0 ? 'win' : 'lose') : this.online ? (w === this.online.side ? 'win' : 'lose') : 'win');
+  }
+
+  update(time, delta) {
+    const b = this.bot;
+    if (!b || this.busy || this.state.winner !== null || this.state.turn !== b.side) return;
+    if (b.wait === null) b.wait = 0.7;
+    b.wait -= delta / 1000;
+    if (b.wait > 0) return;
+    b.wait = null;
+    const col = pickMove(this.state, 4);
+    if (col !== null) this.play(col);
   }
 
   myTurn() {
+    if (this.bot) return this.state.turn !== this.bot.side;
     return !this.online || this.state.turn === this.online.side;
   }
 
@@ -109,13 +124,15 @@ class C4 extends Phaser.Scene {
     }
     const w = winner(s);
     if (w === null) {
-      if (this.online) this.ui.setText(this.myTurn() ? 'Your turn' : "Opponent's turn…");
+      if (this.bot) this.ui.setText(this.myTurn() ? 'Your turn' : 'Bot is thinking...');
+      else if (this.online) this.ui.setText(this.myTurn() ? 'Your turn' : "Opponent's turn…");
       else this.ui.setText('Player ' + (s.turn + 1) + "'s turn");
       this.ui.setColor(s.turn === 0 ? '#111111' : '#8a8a84');
     } else {
       const tail = this.online ? '' : ' Tap to restart';
       this.ui.setText(
         w === 'draw' ? 'Draw!' + tail
+          : this.bot ? (w === 0 ? 'You win!' : 'Bot wins!') + ' Tap to restart'
           : this.online ? (w === this.online.side ? 'You win!' : 'You lose')
           : 'Player ' + (w + 1) + ' wins!' + tail);
       this.ui.setColor('#111111');
@@ -129,6 +146,7 @@ export default {
   tagline: 'Drop discs, line up four',
   tier: 'verified',
   orientation: 'portrait',
+  bot: true,
   color: '#38bdf8',
   engine: { init, step, winner },
 
