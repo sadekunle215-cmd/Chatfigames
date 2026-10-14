@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { W, H, R, LIVES, TUBE, PIVOT, makeState, simulate } from './sim.js';
+import { installScenery } from './scenery.js';
 
 const K = 1.5; // unit scale
 const FONT = 'Space Grotesk, Inter, sans-serif';
@@ -167,6 +168,7 @@ class Duel extends Phaser.Scene {
     this.fx = this.add.graphics().setDepth(4);
     this.hud = this.add.graphics().setDepth(5);
 
+    this.initScenery();
     this.drawSky();
     this.drawTerrain();
 
@@ -294,6 +296,7 @@ class Duel extends Phaser.Scene {
     this.emit('spark', x, y, 14);
     this.emit('ring', x, y, 1);
     this.sfx('boom');
+    this.sceneryBlast(x, y);
     this.cameras.main.shake(280, 0.015);
     this.cameras.main.flash(90, 255, 235, 180);
   }
@@ -395,6 +398,7 @@ class Duel extends Phaser.Scene {
     });
     this.ridge(g, 0x86a3bb, 215, 30, 0.011, 0);
     this.ridge(g, 0x647f93, 255, 24, 0.017, 2);
+    this.skyline(g);
   }
 
   ridge(g, color, base, amp, f, ph) {
@@ -561,6 +565,7 @@ class Duel extends Phaser.Scene {
   update(time, delta) {
     const dt = Math.min(delta / 1000, 0.05);
     this.stepClouds(dt);
+    this.stepScenery(dt);
 
     this.state.tanks.forEach((k) => {
       if (k.lives > 0) return;
@@ -586,4 +591,5 @@ class Duel extends Phaser.Scene {
   }
 }
 
+installScenery(Duel);
 export { Duel };

@@ -33,3 +33,14 @@ html, body { overscroll-behavior: none; }
   .top { padding-top:10px; }
   .hero h1 { font-size:28px; }
 }
+
+.stage .chat-pop { position:absolute; right:14px; bottom:84px; z-index:25; max-width:min(78%, 320px);
+  background:#fff; color:#0b0b0b; border:1px solid #e3e3df; border-radius:18px 18px 4px 18px;
+  padding:10px 14px; font-size:15px; box-shadow:0 14px 34px rgba(0,0,0,.28); display:none;
+  transform-origin:100% 100%; font-family:'Space Grotesk','Inter',sans-serif; word-break:break-word; }
+.stage .chat-pop b { display:block; font-size:11px; color:#6f6f6a; margin-bottom:2px;
+  letter-spacing:.04em; text-transform:uppercase; }
+.stage .chat-pop.show { display:block;
+  animation: popzoom .38s cubic-bezier(.2,1.4,.4,1) both, popfade .4s ease 3.8s forwards; }
+@keyframes popzoom { from { transform:scale(.3); opacity:0; } to { transform:scale(1); opacity:1; } }
+@keyframes popfade { to { opacity:0; transform:scale(.9); } }

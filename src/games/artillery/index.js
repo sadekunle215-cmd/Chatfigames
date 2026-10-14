@@ -8,6 +8,7 @@ export default {
   tagline: 'Aim, fire, reshape the battlefield',
   tier: 'verified',
   orientation: 'landscape',
+  ambient: 'war',
   color: '#a3e635',
 
   // Pure rules: same seed + same moves = same result on every device

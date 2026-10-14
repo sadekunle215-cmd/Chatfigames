@@ -18,6 +18,7 @@ export function mountChat(parent, { roomId, me, transport: custom, onIncoming })
   const t = custom || transport(roomId);
   const root = document.createElement('div');
   root.innerHTML =
+    '<div class="chat-pop"></div>' +
     '<button class="chat-fab" aria-label="Chat">💬<span class="chat-badge"></span></button>' +
     '<div class="chat-sheet"><div class="chat-head"><span>Match chat</span><button class="chat-x">✕</button></div>' +
     '<div class="chat-log"><div class="chat-hint"></div></div>' +
@@ -31,7 +32,9 @@ export function mountChat(parent, { roomId, me, transport: custom, onIncoming })
   const log = $('.chat-log'), input = $('input'), sendBtn = $('.chat-input button');
   $('.chat-hint').textContent = 'You are ' + me.name + '. Open this page in a second tab to test.';
 
-  let open = false, unread = 0, last = 0;
+  let open = false, unread = 0, last = 0, popTimer = null;
+  const pop = $('.chat-pop');
+  pop.addEventListener('click', () => { pop.classList.remove('show'); setOpen(true); });
 
   function add(m) {
     const hint = log.querySelector('.chat-hint');
@@ -49,10 +52,26 @@ export function mountChat(parent, { roomId, me, transport: custom, onIncoming })
     log.appendChild(el);
     log.scrollTop = log.scrollHeight;
     if (!mine && !open) {
+      showPop(m);
       unread++;
       badge.textContent = unread;
       badge.style.display = 'grid';
     }
+  }
+
+  function showPop(m) {
+    pop.textContent = '';
+    const n = document.createElement('b');
+    n.textContent = m.from.name;
+    const tx = document.createElement('span');
+    tx.textContent = m.text;
+    pop.appendChild(n);
+    pop.appendChild(tx);
+    pop.classList.remove('show');
+    void pop.offsetWidth;
+    pop.classList.add('show');
+    clearTimeout(popTimer);
+    popTimer = setTimeout(() => pop.classList.remove('show'), 4200);
   }
 
   function send(text) {
@@ -81,6 +100,7 @@ export function mountChat(parent, { roomId, me, transport: custom, onIncoming })
     if (v) {
       unread = 0;
       badge.style.display = 'none';
+      pop.classList.remove('show');
       log.scrollTop = log.scrollHeight;
     }
   }

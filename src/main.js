@@ -57,6 +57,7 @@ function teardown() {
   if (current) { current.destroy(); current = null; }
   if (chat) { chat.destroy(); chat = null; }
   cleanups.forEach((f) => f());
+  audio.ambient(false);
   cleanups = [];
   leaveFullscreen();
 }
@@ -222,6 +223,7 @@ function openGame(g, match) {
   }
 
   current = g.mount(document.getElementById('host'), opts);
+  if (g.ambient === 'war') audio.ambient(true);
 
   if (match) {
     chat = mountChat(stage, {

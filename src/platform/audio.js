@@ -98,6 +98,7 @@ const SOUNDS = {
 export const audio = {
   get enabled() { return on; },
   unlock() { ensure(); },
+  ambient(v) { setAmbient(v); },
   play(name) {
     if (!on || !SOUNDS[name]) return;
     if (!ctx || ctx.state !== 'running') { ensure(); return; }
@@ -116,3 +117,123 @@ export const audio = {
     return () => { const i = subs.indexOf(cb); if (i >= 0) subs.splice(i, 1); };
   },
 };
+
+// ---- war ambience: distant gunfire + faint wind (kept deliberately quiet) ----
+const amb = { want: false, timer: null, bus: null, wind: null };
+
+function ambBus() {
+  if (amb.bus) return amb.bus;
+  const input = ctx.createGain();
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 2400;
+  const out = ctx.createGain();
+  out.gain.value = 0.5;
+  input.connect(lp);
+  lp.connect(out);
+  out.connect(master);
+  const d = ctx.createDelay(0.6);
+  d.delayTime.value = 0.28;
+  const fb = ctx.createGain();
+  fb.gain.value = 0.35;
+  lp.connect(d);
+  d.connect(fb);
+  fb.connect(d);
+  d.connect(out);
+  amb.bus = input;
+  return input;
+}
+
+function gunshot(vol, pan, delay) {
+  const t0 = ctx.currentTime + delay;
+  const dest = ambBus();
+  let outNode = dest;
+  if (ctx.createStereoPanner) {
+    const p = ctx.createStereoPanner();
+    p.pan.value = pan;
+    p.connect(dest);
+    outNode = p;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = noise();
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1400 + Math.random() * 1200;
+  bp.Q.value = 0.7;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09 + Math.random() * 0.05);
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(outNode);
+  src.start(t0, Math.random() * 0.5);
+  src.stop(t0 + 0.2);
+
+  const osc = ctx.createOscillator();
+  osc.frequency.setValueAtTime(150, t0);
+  osc.frequency.exponentialRampToValueAtTime(45, t0 + 0.12);
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(vol * 0.9, t0);
+  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+  osc.connect(og);
+  og.connect(outNode);
+  osc.start(t0);
+  osc.stop(t0 + 0.2);
+}
+
+function ambTick() {
+  amb.timer = null;
+  if (!amb.want) return;
+  if (on && ctx && ctx.state === 'running') {
+    const r = Math.random(), pan = Math.random() * 1.6 - 0.8;
+    const v = 0.22 + Math.random() * 0.14; // overall gunfire loudness: raise or lower these
+    if (r < 0.55) {
+      gunshot(v, pan, 0);
+    } else if (r < 0.85) {
+      const n = 3 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) gunshot(v * (0.8 + Math.random() * 0.4), pan, i * (0.075 + Math.random() * 0.03));
+    } else {
+      gunshot(v * 1.2, pan, 0);
+      gunshot(v * 0.7, -pan, 0.45);
+      gunshot(v * 0.6, pan, 0.8);
+    }
+  }
+  amb.timer = setTimeout(ambTick, 900 + Math.random() * 3800);
+}
+
+function windOn() {
+  if (amb.wind || !ctx) return;
+  const src = ctx.createBufferSource();
+  src.buffer = noise();
+  src.loop = true;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 380;
+  const g = ctx.createGain();
+  g.gain.value = 0.05;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.12;
+  const lg = ctx.createGain();
+  lg.gain.value = 0.03;
+  lfo.connect(lg);
+  lg.connect(g.gain);
+  src.connect(lp);
+  lp.connect(g);
+  g.connect(master);
+  src.start();
+  lfo.start();
+  amb.wind = { stop() { try { src.stop(); lfo.stop(); } catch (_) {} } };
+}
+
+function setAmbient(v) {
+  amb.want = v;
+  if (v) {
+    if (!ensure()) return;
+    windOn();
+    if (!amb.timer) amb.timer = setTimeout(ambTick, 1200);
+  } else {
+    clearTimeout(amb.timer);
+    amb.timer = null;
+    if (amb.wind) { amb.wind.stop(); amb.wind = null; }
+  }
+}
