@@ -14,7 +14,7 @@ function transport(roomId) {
   };
 }
 
-export function mountChat(parent, { roomId, me, transport: custom }) {
+export function mountChat(parent, { roomId, me, transport: custom, onIncoming }) {
   const t = custom || transport(roomId);
   const root = document.createElement('div');
   root.innerHTML =
@@ -37,6 +37,7 @@ export function mountChat(parent, { roomId, me, transport: custom }) {
     const hint = log.querySelector('.chat-hint');
     if (hint) hint.remove();
     const mine = m.from.id === me.id;
+    if (!mine && onIncoming) onIncoming();
     const el = document.createElement('div');
     el.className = 'msg' + (mine ? ' mine' : '');
     if (!mine) {

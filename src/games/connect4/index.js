@@ -7,7 +7,9 @@ const COLORS = [0x111111, 0xb0b0aa];
 
 class C4 extends Phaser.Scene {
   create() {
-    this.online = this.registry.get('opts').online || null;
+    const opts = this.registry.get('opts');
+    this.online = opts.online || null;
+    this.audio = opts.audio || null;
     this.state = init();
     this.busy = false;
     this.hover = -1;
@@ -25,6 +27,15 @@ class C4 extends Phaser.Scene {
   colAt(x) {
     const c = Math.floor((x - X0) / CELL);
     return c >= 0 && c < COLS ? c : -1;
+  }
+
+  sfx(n) {
+    if (this.audio) this.audio.play(n);
+  }
+
+  endSound(w) {
+    if (w === 'draw') return;
+    this.sfx(this.online ? (w === this.online.side ? 'win' : 'lose') : 'win');
   }
 
   myTurn() {
@@ -63,7 +74,9 @@ class C4 extends Phaser.Scene {
       ease: 'Bounce.easeOut',
       onComplete: () => {
         disc.destroy();
+        if (this.audio) this.audio.play('drop');
         this.state = res.next;
+        if (res.next.winner !== null) this.endSound(res.next.winner);
         this.busy = false;
         this.render();
       },
@@ -115,6 +128,7 @@ export default {
   name: 'Connect 4',
   tagline: 'Drop discs, line up four',
   tier: 'verified',
+  orientation: 'portrait',
   color: '#38bdf8',
   engine: { init, step, winner },
 

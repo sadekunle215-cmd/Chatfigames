@@ -144,6 +144,7 @@ class Duel extends Phaser.Scene {
   create() {
     const opts = this.registry.get('opts') || {};
     this.online = opts.online || null;
+    this.audio = opts.audio || null;
     this.state = makeState(this.online ? this.online.seed : (Math.random() * 4294967296) >>> 0);
     this.barrel = [60, 120];
     this.busy = false;
@@ -203,6 +204,15 @@ class Duel extends Phaser.Scene {
     this.refreshUi();
   }
 
+  sfx(n) {
+    if (this.audio) this.audio.play(n);
+  }
+
+  endSound(w) {
+    if (w === 'draw') return;
+    this.sfx(this.online ? (w === this.online.side ? 'win' : 'lose') : 'win');
+  }
+
   myTurn() {
     return !this.online || this.state.turn === this.online.side;
   }
@@ -244,6 +254,7 @@ class Duel extends Phaser.Scene {
     if (this.online && !remote) this.online.send({ angle, power });
     const prev = this.state, who = prev.turn;
     this.rocketOwner = who;
+    this.sfx('launch');
     const rad = (angle * Math.PI) / 180, k = prev.tanks[who];
     const tx = k.x + Math.cos(rad) * TUBE, ty = prev.heights[k.x] - PIVOT - Math.sin(rad) * TUBE;
     this.emit('fire', tx, ty, 8);
@@ -269,6 +280,7 @@ class Duel extends Phaser.Scene {
         this.state = res.next;
         this.drawTerrain();
         this.hitCheck(prev, res.next);
+        if (res.next.winner !== null) this.time.delayedCall(700, () => this.endSound(res.next.winner));
         this.busy = false;
         this.refreshUi();
       },
@@ -281,6 +293,7 @@ class Duel extends Phaser.Scene {
     this.emit('debris', x, y, 22);
     this.emit('spark', x, y, 14);
     this.emit('ring', x, y, 1);
+    this.sfx('boom');
     this.cameras.main.shake(280, 0.015);
     this.cameras.main.flash(90, 255, 235, 180);
   }
@@ -291,6 +304,7 @@ class Duel extends Phaser.Scene {
       if (lost <= 0) continue;
       const k = next.tanks[i], gy = next.heights[k.x];
       this.hurtUntil[i] = this.time.now + 1700;
+      this.time.delayedCall(180, () => this.sfx('hit'));
       if (k.lives > 0) {
         this.bubble[i] = { text: HURT[Math.floor(Math.random() * HURT.length)], until: this.time.now + 1900 };
       } else {

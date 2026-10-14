@@ -7,6 +7,7 @@ export default {
   name: 'Artillery Duel',
   tagline: 'Aim, fire, reshape the battlefield',
   tier: 'verified',
+  orientation: 'landscape',
   color: '#a3e635',
 
   // Pure rules: same seed + same moves = same result on every device

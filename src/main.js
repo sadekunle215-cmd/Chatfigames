@@ -3,15 +3,22 @@ import { GAMES } from './registry.js';
 import { getOnline, getTotal } from './presence.js';
 import { connect, on, send, isOnline } from './platform/net.js';
 import { mountChat } from './platform/chat.js';
+import { audio } from './platform/audio.js';
 
 const app = document.getElementById('app');
 const me = {
   id: Math.random().toString(36).slice(2, 8),
   name: 'Player ' + Math.floor(1000 + Math.random() * 9000),
 };
-let current = null, chat = null, cleanups = [];
+let current = null, chat = null, cleanups = [], rotDismissed = false;
 
 connect(me.name);
+
+const SVG = (inner) =>
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + inner + '</svg>';
+const ICON_ON = SVG('<path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 010 7"/><path d="M18.5 5.5a9 9 0 010 13"/>');
+const ICON_OFF = SVG('<path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><path d="M16 9l5 6"/><path d="M21 9l-5 6"/>');
+const ICON_FS = SVG('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>');
 
 const ART = {
   artillery:
@@ -25,6 +32,13 @@ const ART = {
     '<g fill="#fff"><circle cx="48" cy="16" r="6"/><circle cx="32" cy="32" r="6"/><circle cx="16" cy="48" r="6"/></g></svg>',
 };
 
+// Sound unlock + click sounds
+['pointerdown', 'touchend', 'click'].forEach((ev) =>
+  window.addEventListener(ev, () => audio.unlock(), { passive: true }));
+document.addEventListener('click', (e) => {
+  if (e.target.closest && e.target.closest('button')) audio.play('click');
+});
+
 function toast(msg) {
   const el = document.createElement('div');
   el.className = 'toast';
@@ -33,14 +47,43 @@ function toast(msg) {
   setTimeout(() => el.remove(), 2200);
 }
 
+function leaveFullscreen() {
+  if (!document.fullscreenElement) return;
+  try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (_) {}
+  document.exitFullscreen().catch(() => {});
+}
+
 function teardown() {
   if (current) { current.destroy(); current = null; }
   if (chat) { chat.destroy(); chat = null; }
   cleanups.forEach((f) => f());
   cleanups = [];
+  leaveFullscreen();
 }
 
-const totalText = () => (isOnline() ? getTotal() + ' players online' : 'Offline · start the server');
+async function toggleLandscape() {
+  if (document.fullscreenElement) { leaveFullscreen(); return; }
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch (_) {
+    toast('Fullscreen is not supported here. Rotate your phone instead.');
+    return;
+  }
+  try { await screen.orientation.lock('landscape'); } catch (_) { /* rotate manually */ }
+}
+
+function soundButton() {
+  const b = document.createElement('button');
+  b.className = 'iconbtn';
+  b.setAttribute('aria-label', 'Sound');
+  const paint = (v) => { b.innerHTML = v ? ICON_ON : ICON_OFF; b.classList.toggle('off', !v); };
+  paint(audio.enabled);
+  b.addEventListener('click', () => audio.toggle());
+  cleanups.push(audio.subscribe(paint));
+  return b;
+}
+
+const totalText = () => (isOnline() ? getTotal() + ' players online' : 'Offline · reconnecting...');
 
 function refreshPresence() {
   const t = document.getElementById('total');
@@ -69,7 +112,7 @@ function showLobby() {
   app.innerHTML =
     '<div class="scroll">' +
     '<header class="top"><div class="brand"><span class="mark"></span>ChatFi <b>Play</b></div>' +
-    '<button class="pill dark" id="wallet">Connect wallet</button></header>' +
+    '<div class="tools"><span id="snd-slot"></span><button class="pill dark" id="wallet">Connect wallet</button></div></header>' +
     '<section class="hero">' +
     '<div class="eyebrow"><span class="live"></span><span id="total">' + totalText() + '</span></div>' +
     '<h1>Play. Stake.<br/>Win the pot.</h1>' +
@@ -82,6 +125,7 @@ function showLobby() {
     '<p>Bring it to ChatFi and plug into the 1v1 wager system. Developer access is coming.</p></section>' +
     '</div>';
 
+  document.getElementById('snd-slot').replaceWith(soundButton());
   app.querySelectorAll('.card').forEach((el) =>
     el.addEventListener('click', () => showMode(GAMES.find((g) => g.id === el.dataset.id))));
   document.getElementById('wallet').addEventListener('click', () => toast('Wallet connect is coming next'));
@@ -107,7 +151,7 @@ function showMode(g) {
 }
 
 function startSearch(g) {
-  if (!isOnline()) { toast('Server not reachable. Run: npm run server'); return; }
+  if (!isOnline()) { toast("Can't reach the game server. Try again in a moment."); return; }
   teardown();
   app.innerHTML =
     '<div class="search"><div class="spinner"></div><h2>Finding an opponent…</h2>' +
@@ -116,7 +160,7 @@ function startSearch(g) {
   const upd = () => { sp.textContent = g.name + ' · ' + getOnline(g.id) + ' in this game right now'; };
   upd();
   cleanups.push(on('presence', upd));
-  cleanups.push(on('matched', (m) => openGame(g, m)));
+  cleanups.push(on('matched', (m) => { audio.play('match'); openGame(g, m); }));
   send('queue', { game: g.id });
   document.getElementById('cancel').addEventListener('click', () => { send('cancel'); showLobby(); });
 }
@@ -126,7 +170,7 @@ function openGame(g, match) {
   app.innerHTML =
     '<div class="stage"><button class="back" id="back">‹ Lobby</button><div id="host"></div></div>';
   const stage = app.querySelector('.stage');
-  const opts = {};
+  const opts = { audio };
 
   if (match) {
     opts.online = {
@@ -147,12 +191,43 @@ function openGame(g, match) {
     send('status', { game: g.id });
   }
 
+  // Bottom-left controls: sound + landscape
+  const dock = document.createElement('div');
+  dock.className = 'dock';
+  dock.appendChild(soundButton());
+  if (g.orientation === 'landscape' && document.fullscreenEnabled) {
+    const fs = document.createElement('button');
+    fs.className = 'iconbtn';
+    fs.setAttribute('aria-label', 'Landscape fullscreen');
+    fs.innerHTML = ICON_FS;
+    fs.addEventListener('click', toggleLandscape);
+    dock.appendChild(fs);
+  }
+  stage.appendChild(dock);
+
+  // Rotate hint for landscape games while the phone is upright
+  if (g.orientation === 'landscape' && window.matchMedia) {
+    const mq = window.matchMedia('(orientation: portrait)');
+    const hint = document.createElement('div');
+    hint.className = 'rot';
+    hint.innerHTML = '<span>↻</span>Rotate your phone for a bigger battlefield';
+    hint.addEventListener('click', () => { rotDismissed = true; hint.remove(); });
+    const upd = () => {
+      if (mq.matches && !rotDismissed) { if (!hint.isConnected) stage.appendChild(hint); }
+      else hint.remove();
+    };
+    upd();
+    mq.addEventListener('change', upd);
+    cleanups.push(() => mq.removeEventListener('change', upd));
+  }
+
   current = g.mount(document.getElementById('host'), opts);
 
   if (match) {
     chat = mountChat(stage, {
       roomId: match.room,
       me,
+      onIncoming: () => audio.play('chat'),
       transport: {
         send: (msg) => send('chat', { data: msg }),
         onMessage: (cb) => { cleanups.push(on('chat', (m) => cb(m.data))); },
