@@ -1,4 +1,5 @@
 export const W = 800, H = 450, R = 45, G = 0.15;
+export const LIVES = 5, TUBE = 30, PIVOT = 24;
 const PI = 3.141592653589793;
 
 function rng(seed) {
@@ -51,7 +52,7 @@ export function makeState(seed) {
   return {
     seed,
     heights: makeTerrain(seed),
-    tanks: [{ x: 80, hp: 100 }, { x: 720, hp: 100 }],
+    tanks: [{ x: 80, lives: LIVES }, { x: 720, lives: LIVES }],
     turn: 0,
     winner: null,
   };
@@ -64,7 +65,7 @@ export function simulate(s, move) {
   const t = s.tanks[s.turn];
   const rad = (move.angle * PI) / 180;
   const sp = move.power * 0.1;
-  let x = t.x, y = s.heights[t.x] - 14;
+  let x = t.x + cos(rad) * TUBE, y = s.heights[t.x] - PIVOT - sin(rad) * TUBE;
   let vx = cos(rad) * sp, vy = -sin(rad) * sp;
   const path = [[x, y]];
   let impact = null;
@@ -88,9 +89,9 @@ export function simulate(s, move) {
   if (impact) {
     const cx = Math.floor(impact[0]), cy = Math.floor(impact[1]);
     next.tanks.forEach((k, i) => {
-      const ty = s.heights[k.x] - 8;
+      const ty = s.heights[k.x] - 16;
       const d = Math.sqrt((k.x - cx) * (k.x - cx) + (ty - cy) * (ty - cy));
-      if (d < R) k.hp = Math.max(0, k.hp - (10 + Math.floor(((R - d) * 40) / R)));
+      if (d < R) k.lives = Math.max(0, k.lives - (d < 28 ? 2 : 1));
     });
     for (let dx = -R; dx <= R; dx++) {
       const xx = cx + dx;
@@ -100,7 +101,7 @@ export function simulate(s, move) {
     }
   }
 
-  const dead = next.tanks.map((k) => k.hp <= 0);
+  const dead = next.tanks.map((k) => k.lives <= 0);
   if (dead[0] || dead[1]) next.winner = dead[0] && dead[1] ? 'draw' : dead[0] ? 1 : 0;
 
   return { path, impact, next };
