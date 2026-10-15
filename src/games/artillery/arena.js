@@ -39,7 +39,7 @@ class Arena extends Duel {
     const opts = this.registry.get('opts') || {};
     this.online = opts.online || null;
     this.audio = opts.audio || null;
-    this.bot = opts.bot ? { side: 1, shots: 0, nextFire: null, dir: 0 } : null;
+    this.bot = opts.bot ? { side: 1, shots: 0, nextFire: null, dir: 0, restUntil: 0, driveStart: null } : null;
     this.mySide = this.online ? this.online.side : 0;
 
     this.rt = makeRT(this.online ? this.online.seed : (Math.random() * 4294967296) >>> 0);
@@ -265,6 +265,12 @@ class Arena extends Duel {
       if (!p || p.ticks < 8) continue;
       if (Math.abs(p.x - me.x) < R + 24) dir = me.x >= p.x ? 1 : -1;
     }
+    // no holding the pedal forever: after 0.8 s of driving it eases off for 0.4 s
+    if (now < b.restUntil) dir = 0;
+    else if (dir !== 0) {
+      if (b.driveStart === null) b.driveStart = now;
+      if (now - b.driveStart > 800) { b.restUntil = now + 400; b.driveStart = null; dir = 0; }
+    } else b.driveStart = null;
     if (dir !== b.dir) {
       b.dir = dir;
       this.bus.submit({ k: 'drive', dir }, b.side);
@@ -291,10 +297,10 @@ class Arena extends Duel {
       if (!r.impact) return 1e8 + Math.abs(r.path[r.path.length - 1][0] - tx);
       const dF = Math.hypot(r.impact[0] - tx, r.impact[1] - ty);
       const dM = Math.hypot(r.impact[0] - me.x, r.impact[1] - my);
-      return dF + (dM < 55 ? 300 : 0);
+      return dF + (dM < 55 ? 300 : 0) + Math.max(0, power - 75) * 0.8;
     };
 
-    const lo = dir > 0 ? 15 : 100, hi = dir > 0 ? 80 : 165;
+    const lo = dir > 0 ? 35 : 100, hi = dir > 0 ? 80 : 145;
     for (let a = lo; a <= hi; a += 6) {
       for (let p = 25; p <= 100; p += 8) {
         const sc = score(a, p);
@@ -303,7 +309,7 @@ class Arena extends Duel {
     }
     for (let a = best.angle - 5; a <= best.angle + 5; a++) {
       for (let p = best.power - 8; p <= best.power + 8; p += 2) {
-        if (a < 0 || a > 180 || p < 10 || p > 100) continue;
+        if (a < lo || a > hi || p < 10 || p > 100) continue;
         const sc = score(a, p);
         if (sc < best.score) best = { score: sc, angle: a, power: p };
       }
