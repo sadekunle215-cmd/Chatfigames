@@ -506,7 +506,7 @@ class Duel extends Phaser.Scene {
     poly(g, 0x3d4046, 1, [q(-4, -th), q(TUBE, -th), q(TUBE, th), q(-4, th)]);
     poly(g, 0x5a5f66, 1, [q(TUBE - 7, -th - 1.2), q(TUBE, -th - 1.2), q(TUBE, th + 1.2), q(TUBE - 7, th + 1.2)]);
     g.fillStyle(dark, 1); g.fillCircle(px, py, 5.5);
-    if (!dead && !(this.rocket && this.rocketOwner === i)) {
+    if (!dead && !(this.unloaded ? this.unloaded[i] : (this.rocket && this.rocketOwner === i))) {
       poly(g, 0xd9322a, 1, [q(TUBE - 2, -2.6), q(TUBE + 9, 0), q(TUBE - 2, 2.6)]);
     }
   }

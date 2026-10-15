@@ -149,7 +149,8 @@ function showMode(g) {
   bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
   bg.querySelector('#m-online').addEventListener('click', () => { bg.remove(); startSearch(g); });
-  bg.querySelector('#m-local').addEventListener('click', () => { bg.remove(); openGame(g); });
+  if (g.local === false) bg.querySelector('#m-local').remove();
+  else bg.querySelector('#m-local').addEventListener('click', () => { bg.remove(); openGame(g); });
   const botBtn = bg.querySelector('#m-bot');
   if (g.bot) botBtn.addEventListener('click', () => { bg.remove(); openGame(g, null, true); });
   else botBtn.remove();
@@ -177,6 +178,17 @@ function startSearch(g) {
   document.getElementById('cancel').addEventListener('click', () => { send('cancel'); showLobby(); });
 }
 
+// Real-time channel: buffers server messages until the game scene is ready for them
+function rtChannel() {
+  const buf = { rt_in: [], rt_sync: [] }, subs = {};
+  ['rt_in', 'rt_sync'].forEach((t) =>
+    cleanups.push(on(t, (m) => { if (subs[t]) subs[t](m); else buf[t].push(m); })));
+  return {
+    send: (data) => send('rt_in', { data }),
+    on: (t, cb) => { subs[t] = cb; buf[t].forEach(cb); buf[t].length = 0; },
+  };
+}
+
 function openGame(g, match, vsBot) {
   teardown();
   app.innerHTML =
@@ -191,6 +203,7 @@ function openGame(g, match, vsBot) {
       seed: match.seed,
       send: (move) => send('move', { data: move }),
       onMove: (cb) => { cleanups.push(on('move', (m) => cb(m.data))); },
+      rt: rtChannel(),
     };
     const vs = document.createElement('div');
     vs.className = 'vs';

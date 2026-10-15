@@ -3,6 +3,10 @@ import { WebSocketServer } from 'ws';
 
 const PORT = process.env.PORT || 8787;
 const GAME_IDS = new Set(['artillery', 'connect4']);
+const RT_GAMES = new Set(['artillery']); // real-time games: the server sequences inputs
+const RT_DELAY = 8;                       // inputs take effect 8 ticks (about 130 ms) after arriving
+const TICK_MS = 1000 / 60;
+const rtTimers = new Map();               // room -> { t0, timer }
 const server = http.createServer((req, res) => { res.writeHead(200); res.end('ChatFi matchmaking server'); });
 const wss = new WebSocketServer({ server });
 server.listen(PORT, '0.0.0.0');
@@ -22,6 +26,17 @@ function broadcastPresence() {
   for (const ws of clients.keys()) send(ws, msg);
 }
 
+function startRT(roomId, a, b) {
+  const info = { t0: Date.now(), timer: null };
+  info.timer = setInterval(() => {
+    const limit = Math.floor((Date.now() - info.t0) / TICK_MS) + RT_DELAY - 1;
+    const m = { type: 'rt_sync', limit };
+    send(a, m);
+    send(b, m);
+  }, 50);
+  rtTimers.set(roomId, info);
+}
+
 function dequeue(ws) {
   for (const g of Object.keys(queues)) queues[g] = queues[g].filter((w) => w !== ws);
 }
@@ -38,6 +53,8 @@ function leaveRoom(ws) {
       if (oc) { oc.room = null; oc.side = null; }
     }
     rooms.delete(c.room);
+    const rtInfo = rtTimers.get(c.room);
+    if (rtInfo) { clearInterval(rtInfo.timer); rtTimers.delete(c.room); }
   }
   c.room = null;
   c.side = null;
@@ -57,6 +74,7 @@ function tryMatch(gameId) {
     ca.side = 0; cb.side = 1;
     send(a, { type: 'matched', room, side: 0, seed, game: gameId, opponent: { name: cb.name } });
     send(b, { type: 'matched', room, side: 1, seed, game: gameId, opponent: { name: ca.name } });
+    if (RT_GAMES.has(gameId)) startRT(room, a, b);
     console.log('matched', gameId, ca.name, 'vs', cb.name);
   }
 }
@@ -95,6 +113,26 @@ wss.on('connection', (ws) => {
           tryMatch(m.game);
         }
         break;
+
+      case 'rt_in': {
+        const info = c.room && rtTimers.get(c.room);
+        if (!info) break;
+        const d = m.data || {};
+        const now = Date.now();
+        let inp = null;
+        if (d.k === 'drive') {
+          inp = { k: 'drive', dir: d.dir === -1 || d.dir === 1 ? d.dir : 0 };
+        } else if (d.k === 'fire' && Number.isInteger(d.angle) && Number.isInteger(d.power)) {
+          if (now - (c.lastFire || 0) < 100) break;
+          c.lastFire = now;
+          inp = { k: 'fire', angle: d.angle, power: d.power };
+        }
+        if (!inp) break;
+        const tick = Math.floor((now - info.t0) / TICK_MS) + RT_DELAY;
+        const out = { type: 'rt_in', tick, side: c.side, data: inp };
+        for (const w of rooms.get(c.room) || []) send(w, out);
+        break;
+      }
 
       case 'cancel':
         dequeue(ws);

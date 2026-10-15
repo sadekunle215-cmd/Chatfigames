@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { W, H, makeState, simulate } from './sim.js';
-import { Duel } from './scene.js';
+import { Arena } from './arena.js';
 
 export default {
   id: 'artillery',
@@ -10,6 +10,7 @@ export default {
   orientation: 'landscape',
   ambient: 'war',
   bot: true,
+  local: false,
   color: '#a3e635',
 
   // Pure rules: same seed + same moves = same result on every device
@@ -34,7 +35,7 @@ export default {
       height: H,
       transparent: true,
       scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
-      scene: Duel,
+      scene: Arena,
       callbacks: { preBoot: (g) => g.registry.set('opts', opts || {}) },
     });
     return { destroy: () => game.destroy(true) };
