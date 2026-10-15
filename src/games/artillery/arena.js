@@ -163,7 +163,10 @@ class Arena extends Duel {
   pollControls() {
     const cam = this.cameras.main, v = cam.worldView, z = cam.zoom;
     const s = 64 / z, gap = 12 / z;
-    this.btnL = { x: v.x + 18 / z, y: v.y + v.height - 140 / z, w: s, h: s };
+    // drive buttons sit on the side opposite to the pull-back of the aim drag
+    const onRight = this.mySide === 0;
+    const bx = onRight ? v.x + v.width - 18 / z - (2 * s + gap) : v.x + 18 / z;
+    this.btnL = { x: bx, y: v.y + v.height - 140 / z, w: s, h: s };
     this.btnR = { x: this.btnL.x + s + gap, y: this.btnL.y, w: s, h: s };
     let l = false, r = false;
     for (const p of this.input.manager.pointers) {
