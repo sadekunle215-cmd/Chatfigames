@@ -21,6 +21,10 @@ const ICON_OFF = SVG('<path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><pat
 const ICON_FS = SVG('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>');
 
 const ART = {
+  chess:
+    '<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M32 7v9M27.5 11.5h9"/><path d="M22 30c0-6 4-10 10-10s10 4 10 10c0 4-2 6-4 8l3 10H23l3-10c-2-2-4-4-4-8z"/><path d="M19 53h26v4H19z" fill="#fff"/></svg>',
+  checkers:
+    '<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"><ellipse cx="32" cy="41" rx="17" ry="8"/><path d="M15 41v7c0 4 8 8 17 8s17-4 17-8v-7"/><ellipse cx="32" cy="29" rx="17" ry="8" fill="#fff" fill-opacity=".25"/></svg>',
   artillery:
     '<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
     '<path d="M4 50 Q16 36 28 46 T60 44"/><path d="M12 40 Q30 6 52 38" stroke-dasharray="1 5"/>' +
@@ -58,6 +62,7 @@ function teardown() {
   if (chat) { chat.destroy(); chat = null; }
   cleanups.forEach((f) => f());
   audio.ambient(false);
+  audio.lounge(false);
   cleanups = [];
   leaveFullscreen();
 }
@@ -249,6 +254,7 @@ function openGame(g, match, vsBot) {
 
   current = g.mount(document.getElementById('host'), opts);
   if (g.ambient === 'war') audio.ambient(true);
+  if (g.ambient === 'lounge') audio.lounge(true);
 
   if (match) {
     chat = mountChat(stage, {

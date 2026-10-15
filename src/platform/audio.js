@@ -99,6 +99,7 @@ export const audio = {
   get enabled() { return on; },
   unlock() { ensure(); },
   ambient(v) { setAmbient(v); },
+  lounge(v) { setLounge(v); },
   play(name) {
     if (!on || !SOUNDS[name]) return;
     if (!ctx || ctx.state !== 'running') { ensure(); return; }
@@ -236,4 +237,68 @@ function setAmbient(v) {
     amb.timer = null;
     if (amb.wind) { amb.wind.stop(); amb.wind = null; }
   }
+}
+
+// ---- board game sounds + soft lounge ambience ----
+SOUNDS.move = () => {
+  burst(0.07, 1800, 500, 0.5, { type: 'bandpass' });
+  tone(170, 0.09, { vol: 0.4, to: 90 });
+};
+SOUNDS.capture = () => {
+  burst(0.09, 2400, 400, 0.65, { type: 'bandpass' });
+  tone(140, 0.12, { vol: 0.5, to: 70 });
+  burst(0.07, 1600, 400, 0.4, { type: 'bandpass', delay: 0.07 });
+  tone(120, 0.1, { vol: 0.35, to: 60, delay: 0.07 });
+};
+SOUNDS.castle = () => {
+  SOUNDS.move();
+  burst(0.07, 1800, 500, 0.5, { type: 'bandpass', delay: 0.16 });
+  tone(170, 0.09, { vol: 0.4, to: 90, delay: 0.16 });
+};
+SOUNDS.check = () => {
+  tone(740, 0.12, { type: 'triangle', vol: 0.25 });
+  tone(988, 0.22, { type: 'triangle', vol: 0.25, delay: 0.12 });
+};
+SOUNDS.promote = () =>
+  [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.2, { type: 'triangle', vol: 0.2, delay: i * 0.07 }));
+SOUNDS.select = () => tone(660, 0.04, { type: 'triangle', vol: 0.12 });
+SOUNDS.illegal = () => tone(180, 0.12, { type: 'square', vol: 0.08, to: 120 });
+
+const lounge = { nodes: null };
+
+function setLounge(v) {
+  if (!v) {
+    if (lounge.nodes) { lounge.nodes.stop(); lounge.nodes = null; }
+    return;
+  }
+  if (lounge.nodes || !ensure()) return;
+  const out = ctx.createGain();
+  out.gain.value = 0.5;
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 900;
+  lp.connect(out);
+  out.connect(master);
+  const oscs = [110, 164.81, 220, 277.18, 329.63].map((f, i) => {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f;
+    o.detune.value = (i - 2) * 4;
+    const g = ctx.createGain();
+    g.gain.value = 0.012;
+    o.connect(g);
+    g.connect(lp);
+    o.start();
+    return o;
+  });
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.07;
+  const lg = ctx.createGain();
+  lg.gain.value = 0.2;
+  lfo.connect(lg);
+  lg.connect(out.gain);
+  lfo.start();
+  lounge.nodes = {
+    stop() { try { oscs.forEach((o) => o.stop()); lfo.stop(); out.disconnect(); } catch (_) {} },
+  };
 }
