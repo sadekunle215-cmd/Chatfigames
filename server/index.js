@@ -2,7 +2,7 @@ import http from 'node:http';
 import { WebSocketServer } from 'ws';
 
 const PORT = process.env.PORT || 8787;
-const GAME_IDS = new Set(['artillery', 'connect4', 'chess', 'checkers']);
+const GAME_IDS = new Set(['artillery', 'connect4', 'chess', 'checkers', 'snooker']);
 const RT_GAMES = new Set(['artillery']); // real-time games: the server sequences inputs
 const RT_DELAY = 8;                       // inputs take effect 8 ticks (about 130 ms) after arriving
 const TICK_MS = 1000 / 60;

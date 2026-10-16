@@ -100,10 +100,10 @@ export const audio = {
   unlock() { ensure(); },
   ambient(v) { setAmbient(v); },
   lounge(v) { setLounge(v); },
-  play(name) {
+  play(name, arg) {
     if (!on || !SOUNDS[name]) return;
     if (!ctx || ctx.state !== 'running') { ensure(); return; }
-    SOUNDS[name]();
+    SOUNDS[name](arg);
   },
   toggle() {
     on = !on;
@@ -302,3 +302,28 @@ function setLounge(v) {
     stop() { try { oscs.forEach((o) => o.stop()); lfo.stop(); out.disconnect(); } catch (_) {} },
   };
 }
+
+// ---- cue sports sounds (k = how hard, 0 to 1) ----
+SOUNDS.ball = (k = 0.5) => {
+  const v = 0.15 + 0.5 * k;
+  burst(0.04, 3500, 1200, v, { type: 'bandpass' });
+  tone(1300 + k * 600, 0.05, { type: 'triangle', vol: v * 0.5, to: 900 });
+};
+SOUNDS.cushion = (k = 0.5) => {
+  const v = 0.12 + 0.4 * k;
+  burst(0.08, 900, 200, v, { type: 'lowpass' });
+  tone(120, 0.1, { vol: v * 0.6, to: 70 });
+};
+SOUNDS.pocket = () => {
+  burst(0.12, 1500, 300, 0.4, { type: 'bandpass' });
+  tone(220, 0.25, { vol: 0.3, to: 90, delay: 0.05 });
+  burst(0.2, 800, 200, 0.2, { type: 'lowpass', delay: 0.12 });
+};
+SOUNDS.cue = (k = 0.5) => {
+  burst(0.05, 4500, 1500, 0.3 + 0.4 * k, { type: 'bandpass' });
+  tone(900, 0.06, { type: 'triangle', vol: 0.2 + 0.2 * k, to: 500 });
+};
+SOUNDS.foul = () => {
+  tone(150, 0.25, { type: 'sawtooth', vol: 0.12, to: 100 });
+  tone(120, 0.3, { type: 'square', vol: 0.06, to: 80, delay: 0.08 });
+};

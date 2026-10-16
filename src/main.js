@@ -21,6 +21,8 @@ const ICON_OFF = SVG('<path d="M11 5L6 9H3v6h3l5 4V5z" fill="currentColor"/><pat
 const ICON_FS = SVG('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>');
 
 const ART = {
+  snooker:
+    '<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><rect x="7" y="18" width="50" height="28" rx="5"/><circle cx="20" cy="32" r="3.6" fill="#fff"/><circle cx="36" cy="27" r="3.6" fill="#fff" fill-opacity=".5"/><circle cx="42" cy="36" r="3.6" fill="#fff" fill-opacity=".5"/><path d="M4 52 30 33"/></svg>',
   chess:
     '<svg viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M32 7v9M27.5 11.5h9"/><path d="M22 30c0-6 4-10 10-10s10 4 10 10c0 4-2 6-4 8l3 10H23l3-10c-2-2-4-4-4-8z"/><path d="M19 53h26v4H19z" fill="#fff"/></svg>',
   checkers:
