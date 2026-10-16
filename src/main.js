@@ -4,6 +4,7 @@ import { getOnline, getTotal } from './presence.js';
 import { connect, on, send, isOnline } from './platform/net.js';
 import { mountChat } from './platform/chat.js';
 import { audio } from './platform/audio.js';
+import { themedCard } from './platform/cards.js';
 
 const app = document.getElementById('app');
 const me = {
@@ -126,9 +127,9 @@ function showLobby() {
     '<h1>Play. Stake.<br/>Win the pot.</h1>' +
     '<p>1v1 games where the winner takes it all. Every move verifiable.</p>' +
     '<button class="pill light" id="quick">Quick play <span>→</span></button></section>' +
-    '<h3 class="sec">Games</h3><div class="games">' + GAMES.map(cardHtml).join('') + '</div>' +
+    '<h3 class="sec">Games</h3><div class="games">' + GAMES.map((g, i) => themedCard(g, getOnline(g.id), i)).join('') + '</div>' +
     '<h3 class="sec">Coming soon</h3>' +
-    '<div class="chips"><span>Chess</span><span>Battleship</span><span>Pool</span><span>Your game?</span></div>' +
+    '<div class="chips"><span>Battleship</span><span>Reversi</span><span>Air Hockey</span><span>Pool</span><span>Your game?</span></div>' +
     '<section class="dev"><h4>Building a game?</h4>' +
     '<p>Bring it to ChatFi and plug into the 1v1 wager system. Developer access is coming.</p></section>' +
     '</div>';
