@@ -2,19 +2,39 @@ import Phaser from 'phaser';
 import { TW, TH, R, POCKETS } from './physics.js';
 import { init, step, validCue, XB, DR, SPOTS } from './engine.js';
 import { pickShot } from './bot.js';
-import { shadedCircle, poly } from '../boardkit.js';
+import { poly } from '../boardkit.js';
 
 const W = 900, H = 540, TX = 60, TY = 100;
 const FONT = 'Space Grotesk, Inter, sans-serif';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const BALL = {
-  cue: [0xf4f1ea, 0x8a8780], red: [0xc4161c, 0x5a0a0d], 16: [0xf2c400, 0x7a6200], 17: [0x1f8a3a, 0x0b3d17],
-  18: [0x7a4a1e, 0x341d09], 19: [0x1f5fbf, 0x0c2a55], 20: [0xf08aa8, 0x8a3f55], 21: [0x1c1c1c, 0x000000],
+  cue: [0xf4f1ea, 0x9a968c], red: [0xd21a22, 0x5a0a0d], 16: [0xf7cb08, 0x7a6200], 17: [0x1f9a43, 0x0b3d17],
+  18: [0x8a5424, 0x341d09], 19: [0x2468c9, 0x0c2a55], 20: [0xf59ab4, 0x8a3f55], 21: [0x232323, 0x000000],
 };
 const colOf = (id) => (id === 0 ? BALL.cue : id <= 15 ? BALL.red : BALL[id]);
 const NAMES = { 16: 'yellow', 17: 'green', 18: 'brown', 19: 'blue', 20: 'pink', 21: 'black' };
-const SL = { x: 858, top: 150, bot: 400 };
-const BTN = { shoot: { x: 858, y: 446, r: 28 }, nl: { x: 836, y: 108, r: 16 }, nr: { x: 880, y: 108, r: 16 } };
+
+// right-hand control panel (each control has its own space)
+const SL = { x: 858, top: 198, bot: 362 };
+const BTN = { shoot: { x: 858, y: 440, r: 30 }, nl: { x: 838, y: 120, r: 15 }, nr: { x: 878, y: 120, r: 15 } };
+
+function drawBall(g, id) {
+  const c = colOf(id), r = R * 1.12;
+  g.fillStyle(0x000000, 0.2);
+  g.fillEllipse(r * 0.35, r * 0.6, r * 2.4, r * 1.8);
+  g.fillStyle(0x000000, 0.18);
+  g.fillEllipse(r * 0.25, r * 0.45, r * 2.0, r * 1.5);
+  g.fillStyle(c[1], 1);
+  g.fillCircle(0, 0, r);
+  g.fillStyle(c[0], 1);
+  g.fillCircle(-r * 0.1, -r * 0.12, r * 0.88);
+  g.fillStyle(0xffffff, 0.16);
+  g.fillCircle(-r * 0.28, -r * 0.32, r * 0.55);
+  g.fillStyle(0xffffff, 0.3);
+  g.fillCircle(-r * 0.36, -r * 0.4, r * 0.34);
+  g.fillStyle(0xffffff, 0.8);
+  g.fillCircle(-r * 0.36, -r * 0.4, r * 0.18);
+}
 
 export class SnookerScene extends Phaser.Scene {
   create() {
@@ -27,6 +47,7 @@ export class SnookerScene extends Phaser.Scene {
     this.playback = null;
     this.pending = null;
     this.shooter = 0;
+    this.brk = 0;
     this.aim = { angle: 0, power: 55 };
     this.cuePos = [this.state.balls[0].x, this.state.balls[0].y];
     this.drag = null;
@@ -40,10 +61,7 @@ export class SnookerScene extends Phaser.Scene {
     this.drawTable();
     this.balls = this.state.balls.map((b, id) => {
       const g = this.add.graphics().setDepth(3);
-      const c = colOf(id);
-      g.fillStyle(0x000000, 0.3);
-      g.fillEllipse(1.5, 2.5, R * 2.1, R * 1.5);
-      shadedCircle(g, 0, 0, R, c[0], c[1]);
+      drawBall(g, id);
       return g;
     });
     this.gd = this.add.graphics().setDepth(4);
@@ -51,16 +69,17 @@ export class SnookerScene extends Phaser.Scene {
 
     const t = (x, y, s, size, color, bold) =>
       this.add.text(x, y, s, { fontFamily: FONT, fontSize: size + 'px', fontStyle: bold ? 'bold' : 'normal', color }).setDepth(7);
-    this.nameT = [0, 1].map((i) => t(i === 0 ? 156 : 516, 16, this.nameOf(i), 15, '#f1e6cc', true));
-    this.scoreT = [0, 1].map((i) => t(i === 0 ? 388 : 748, 12, '0', 34, '#f6e05e', true).setOrigin(1, 0));
-    this.statusT = t(W / 2, 510, '', 16, '#e8dcc2', true).setOrigin(0.5, 0);
-    t(SL.x, SL.top - 24, 'POWER', 11, '#a9b8a8', true).setOrigin(0.5);
-    this.powerV = t(SL.x, SL.bot + 22, '55', 16, '#ffffff', true).setOrigin(0.5);
+    this.nameT = [0, 1].map((i) => t(i === 0 ? 156 : 516, 14, this.nameOf(i), 15, '#f1e6cc', true));
+    this.scoreT = [0, 1].map((i) => t(i === 0 ? 388 : 748, 10, '0', 34, '#f6e05e', true).setOrigin(1, 0));
+    this.brkT = t(450, 56, '', 11, '#e8dcc2', true).setOrigin(0.5);
+    this.statusT = t(W / 2, 512, '', 16, '#e8dcc2', true).setOrigin(0.5, 0);
+    t(858, 94, 'FINE AIM', 10, '#a9b8a8', true).setOrigin(0.5);
+    t(BTN.nl.x, BTN.nl.y - 1, '‹', 22, '#ffffff', true).setOrigin(0.5);
+    t(BTN.nr.x, BTN.nr.y - 1, '›', 22, '#ffffff', true).setOrigin(0.5);
+    this.angT = t(858, 150, '', 12, '#e8dcc2', false).setOrigin(0.5);
+    t(858, 180, 'POWER', 10, '#a9b8a8', true).setOrigin(0.5);
+    this.powerV = t(858, 384, '55', 16, '#ffffff', true).setOrigin(0.5);
     t(BTN.shoot.x, BTN.shoot.y, 'SHOOT', 11, '#1a1208', true).setOrigin(0.5);
-    t(858, 84, 'FINE AIM', 10, '#a9b8a8', true).setOrigin(0.5);
-    t(BTN.nl.x, BTN.nl.y - 1, '‹', 24, '#ffffff', true).setOrigin(0.5);
-    t(BTN.nr.x, BTN.nr.y - 1, '›', 24, '#ffffff', true).setOrigin(0.5);
-    this.angT = t(858, 134, '', 11, '#e8dcc2', false).setOrigin(0.5);
 
     this.syncBalls();
 
@@ -114,7 +133,7 @@ export class SnookerScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(0);
     g.fillStyle(0x100d0a, 1);
     g.fillRect(-2500, -2500, 5900, 5600);
-    [[620, 0.35, 0x1d1712], [430, 0.4, 0x2a2018], [260, 0.35, 0x3a2b1e]].forEach(([r, a, col]) => {
+    [[640, 0.35, 0x1d1712], [450, 0.4, 0x2a2018], [280, 0.35, 0x3a2b1e], [160, 0.25, 0x4b3826]].forEach(([r, a, col]) => {
       g.fillStyle(col, a);
       g.fillCircle(W / 2, 300, r);
     });
@@ -123,49 +142,104 @@ export class SnookerScene extends Phaser.Scene {
   drawTable() {
     const g = this.add.graphics().setDepth(1);
     const fx = TX - 30, fy = TY - 30, fw = TW + 60, fh = TH + 60;
+
+    // frame: shadow, wood, bevels, grain
     g.fillStyle(0x000000, 0.4);
-    g.fillRoundedRect(fx + 6, fy + 10, fw, fh, 26);
-    g.fillStyle(0x4a2412, 1);
+    g.fillRoundedRect(fx + 6, fy + 12, fw, fh, 26);
+    g.fillStyle(0x3c1c0e, 1);
     g.fillRoundedRect(fx, fy, fw, fh, 26);
-    g.lineStyle(3, 0x7a4a2a, 1);
-    g.strokeRoundedRect(fx + 3, fy + 3, fw - 6, fh - 6, 23);
-    g.lineStyle(2, 0x2a1209, 1);
+    g.fillStyle(0x4f2713, 1);
+    g.fillRoundedRect(fx + 3, fy + 3, fw - 6, fh - 6, 24);
+    g.fillStyle(0x5e3018, 1);
+    g.fillRoundedRect(fx + 7, fy + 7, fw - 14, fh - 14, 21);
+    for (let k = 0; k < 14; k++) {
+      const yy = fy + 9 + k * 1.6, yb = fy + fh - 9 - k * 1.6;
+      g.lineStyle(1, k % 2 ? 0x000000 : 0xb07a4a, 0.07);
+      g.beginPath(); g.moveTo(fx + 30, yy); g.lineTo(fx + fw - 30, yy + (k % 3) - 1); g.strokePath();
+      g.beginPath(); g.moveTo(fx + 30, yb); g.lineTo(fx + fw - 30, yb + (k % 3) - 1); g.strokePath();
+      const xx = fx + 9 + k * 1.6, xr = fx + fw - 9 - k * 1.6;
+      g.beginPath(); g.moveTo(xx, fy + 30); g.lineTo(xx + (k % 3) - 1, fy + fh - 30); g.strokePath();
+      g.beginPath(); g.moveTo(xr, fy + 30); g.lineTo(xr + (k % 3) - 1, fy + fh - 30); g.strokePath();
+    }
+    g.lineStyle(2, 0x9a6a3c, 0.55);
+    g.strokeRoundedRect(fx + 3, fy + 3, fw - 6, fh - 6, 24);
+    g.lineStyle(2, 0x1f0d05, 1);
     g.strokeRoundedRect(fx, fy, fw, fh, 26);
-    g.fillStyle(0xe8d3a8, 0.5);
-    for (let k = 1; k < 8; k++) {
-      g.fillCircle(TX + (k * TW) / 8, TY - 22, 1.8);
-      g.fillCircle(TX + (k * TW) / 8, TY + TH + 22, 1.8);
+
+    // rail sights (ivory diamonds)
+    const diamond = (x, y) => poly(g, 0xf1e6c8, 0.9, [[x, y - 4], [x + 3, y], [x, y + 4], [x - 3, y]]);
+    for (const k of [1, 2, 3, 5, 6, 7]) {
+      diamond(TX + (k * TW) / 8, TY - 24);
+      diamond(TX + (k * TW) / 8, TY + TH + 24);
     }
-    g.fillStyle(0x0c6a3f, 1);
+    for (const k of [1, 2, 3]) {
+      diamond(TX - 24, TY + (k * TH) / 4);
+      diamond(TX + TW + 24, TY + (k * TH) / 4);
+    }
+
+    // cushion backing and cloth
+    g.fillStyle(0x07351f, 1);
     g.fillRoundedRect(TX - 15, TY - 15, TW + 30, TH + 30, 12);
-    g.lineStyle(2, 0x084a2c, 1);
-    g.strokeRoundedRect(TX - 15, TY - 15, TW + 30, TH + 30, 12);
-    for (let k = 0; k < 8; k++) {
-      g.fillStyle(k % 2 ? 0x1b8a54 : 0x1e9259, 1);
-      g.fillRect(TX, TY + (k * TH) / 8, TW, TH / 8 + 1);
+    g.fillStyle(0x167a49, 1);
+    g.fillRect(TX, TY, TW, TH);
+    for (let k = 0; k < 9; k++) {
+      g.fillStyle(0x3cc080, 0.055);
+      g.fillEllipse(TX + TW / 2, TY + TH / 2, TW * (0.35 + k * 0.08), TH * (0.35 + k * 0.08));
     }
-    g.fillStyle(0x2fae72, 0.12);
-    g.fillEllipse(TX + TW / 2, TY + TH / 2, TW * 0.8, TH * 0.7);
-    g.lineStyle(1.5, 0xe8f2ea, 0.55);
+    let sd = 12345;
+    const rnd = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle(rnd() < 0.5 ? 0xffffff : 0x000000, 0.05);
+      g.fillRect(TX + rnd() * TW, TY + rnd() * TH, 1.2, 1.2);
+    }
+
+    // markings
+    g.lineStyle(1.5, 0xe8f2ea, 0.5);
     g.beginPath();
     g.moveTo(TX + XB, TY);
     g.lineTo(TX + XB, TY + TH);
     g.strokePath();
     g.beginPath();
-    for (let k = 0; k <= 24; k++) {
-      const a = Math.PI / 2 + (k / 24) * Math.PI;
+    for (let k = 0; k <= 28; k++) {
+      const a = Math.PI / 2 + (k / 28) * Math.PI;
       const x = TX + XB + DR * Math.cos(a), y = TY + TH / 2 + DR * Math.sin(a);
       if (k === 0) g.moveTo(x, y); else g.lineTo(x, y);
     }
     g.strokePath();
-    g.fillStyle(0xe8f2ea, 0.7);
-    Object.keys(SPOTS).forEach((id) => g.fillCircle(TX + SPOTS[id][0], TY + SPOTS[id][1], 1.6));
+    g.fillStyle(0xe8f2ea, 0.75);
+    Object.keys(SPOTS).forEach((id) => g.fillCircle(TX + SPOTS[id][0], TY + SPOTS[id][1], 1.8));
+
+    // cushions with angled jaws
+    const cg = 22, mg = 20, th = 15;
+    const cushion = (pts, nose) => {
+      poly(g, 0x0e7a47, 1, pts);
+      g.lineStyle(2, 0x45c98f, 0.75);
+      g.beginPath(); g.moveTo(nose[0][0], nose[0][1]); g.lineTo(nose[1][0], nose[1][1]); g.strokePath();
+      g.lineStyle(1.5, 0x052d1a, 0.8);
+      g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); g.lineTo(pts[1][0], pts[1][1]); g.strokePath();
+    };
+    [[TX + cg, TX + TW / 2 - mg], [TX + TW / 2 + mg, TX + TW - cg]].forEach(([a1, a2]) => {
+      cushion([[a1, TY - th], [a2, TY - th], [a2 - 11, TY], [a1 + 11, TY]], [[a1 + 11, TY], [a2 - 11, TY]]);
+      cushion([[a1, TY + TH + th], [a2, TY + TH + th], [a2 - 11, TY + TH], [a1 + 11, TY + TH]], [[a1 + 11, TY + TH], [a2 - 11, TY + TH]]);
+    });
+    cushion([[TX - th, TY + cg], [TX - th, TY + TH - cg], [TX, TY + TH - cg - 11], [TX, TY + cg + 11]], [[TX, TY + cg + 11], [TX, TY + TH - cg - 11]]);
+    cushion([[TX + TW + th, TY + cg], [TX + TW + th, TY + TH - cg], [TX + TW, TY + TH - cg - 11], [TX + TW, TY + cg + 11]], [[TX + TW, TY + cg + 11], [TX + TW, TY + TH - cg - 11]]);
+
+    // pockets with brass plates and leather
     POCKETS.forEach((p, i) => {
-      const r = i === 1 || i === 4 ? 14 : 16;
-      g.fillStyle(0x5a3a1a, 1);
-      g.fillCircle(TX + p[0], TY + p[1], r + 2.5);
+      const r = i === 1 || i === 4 ? 14.5 : 17;
+      g.lineStyle(3, 0xc9a24a, 0.95);
+      g.strokeCircle(TX + p[0], TY + p[1], r + 6);
+      g.lineStyle(1.5, 0x6e5518, 0.9);
+      g.strokeCircle(TX + p[0], TY + p[1], r + 7.5);
+      g.fillStyle(0x4a2a12, 1);
+      g.fillCircle(TX + p[0], TY + p[1], r + 4);
       g.fillStyle(0x050505, 1);
       g.fillCircle(TX + p[0], TY + p[1], r);
+      g.fillStyle(0x2a2a2a, 0.55);
+      g.fillCircle(TX + p[0] - r * 0.25, TY + p[1] - r * 0.3, r * 0.55);
+      g.fillStyle(0x050505, 1);
+      g.fillCircle(TX + p[0] + r * 0.1, TY + p[1] + r * 0.1, r * 0.8);
     });
   }
 
@@ -186,7 +260,7 @@ export class SnookerScene extends Phaser.Scene {
     const d2 = (a, b) => (w.x - a) * (w.x - a) + (w.y - b) * (w.y - b);
     if (d2(BTN.shoot.x, BTN.shoot.y) <= BTN.shoot.r * BTN.shoot.r) { this.shoot(); return; }
     for (const k of ['nl', 'nr']) {
-      if (d2(BTN[k].x, BTN[k].y) <= BTN[k].r * BTN[k].r * 1.6) {
+      if (d2(BTN[k].x, BTN[k].y) <= BTN[k].r * BTN[k].r * 1.7) {
         this.nudge = { id: p.id, dir: k === 'nl' ? -1 : 1, next: 0, first: true };
         return;
       }
@@ -232,7 +306,7 @@ export class SnookerScene extends Phaser.Scene {
   }
 
   place(w) {
-    let tx = Math.min(w.x - TX, XB);
+    const tx = Math.min(w.x - TX, XB);
     let dx = tx - XB, dy = w.y - TY - TH / 2;
     const d = Math.sqrt(dx * dx + dy * dy), lim = DR - 0.5;
     if (d > lim) { dx *= lim / d; dy *= lim / d; }
@@ -328,9 +402,10 @@ export class SnookerScene extends Phaser.Scene {
     else if (e.k === 'cush') this.snd('cushion', clamp(e.s / 220, 0.1, 1));
     else if (e.k === 'pot') {
       this.sfx('pocket');
-      const p = POCKETS[e.p];
-      const c = this.add.circle(TX + p[0], TY + p[1], 8, 0xffffff, 0.5).setDepth(5);
-      this.tweens.add({ targets: c, scale: 2.4, alpha: 0, duration: 320, onComplete: () => c.destroy() });
+      const P = POCKETS[e.p];
+      const g = this.add.graphics().setDepth(5).setPosition(TX + P[0], TY + P[1]);
+      drawBall(g, e.id);
+      this.tweens.add({ targets: g, scale: 0.2, alpha: 0, duration: 280, ease: 'Quad.easeIn', onComplete: () => g.destroy() });
     }
   }
 
@@ -347,6 +422,8 @@ export class SnookerScene extends Phaser.Scene {
     this.cuePos = [this.state.balls[0].x, this.state.balls[0].y];
     this.syncBalls();
     const who = this.shooter;
+    if (!fx.foul && fx.pts > 0 && this.state.turn === who) this.brk += fx.pts;
+    else this.brk = 0;
     if (fx.foul) {
       this.setNote('Foul · ' + fx.why + ' · ' + fx.pen + ' to ' + this.nameOf(1 - who));
       this.sfx('foul');
@@ -405,7 +482,7 @@ export class SnookerScene extends Phaser.Scene {
       const ol = Math.sqrt(ox * ox + oy * oy) || 1;
       ox /= ol; oy /= ol;
       const dot = dx * ox + dy * oy;
-      let tx = dx - ox * dot, ty = dy - oy * dot;
+      const tx = dx - ox * dot, ty = dy - oy * dot;
       const tl = Math.sqrt(tx * tx + ty * ty) || 1;
       return { x: gx, y: gy, ball: hit, bx: b.x, by: b.y, ox, oy, tx: tx / tl, ty: ty / tl };
     }
@@ -413,15 +490,21 @@ export class SnookerScene extends Phaser.Scene {
   }
 
   drawCue(g, cx, cy, dx, dy, power) {
-    const pull = 8 + power * 0.45, start = R + 3 + pull, len = 190;
+    const pull = 8 + power * 0.45, start = R + 3 + pull, len = 200;
     const px = -dy, py = dx;
     const at = (d, w) => [cx - dx * (start + d) + px * w, cy - dy * (start + d) + py * w];
-    poly(g, 0x2a1810, 1, [at(len * 0.45, -2.8), at(len, -3.4), at(len, 3.4), at(len * 0.45, 2.8)]);
-    poly(g, 0xb88b4a, 1, [at(7, -1.6), at(len * 0.45, -2.8), at(len * 0.45, 2.8), at(7, 1.6)]);
-    poly(g, 0xefe3c4, 1, [at(0, -1.4), at(7, -1.6), at(7, 1.6), at(0, 1.4)]);
+    const sh = (d, w) => [cx - dx * (start + d) + px * w + 3, cy - dy * (start + d) + py * w + 5];
+    poly(g, 0x000000, 0.22, [sh(0, -1.6), sh(len, -3.6), sh(len, 3.6), sh(0, 1.6)]);
+    poly(g, 0x1f120a, 1, [at(len * 0.55, -2.9), at(len, -3.7), at(len, 3.7), at(len * 0.55, 2.9)]);
+    poly(g, 0x6b3b1d, 1, [at(len * 0.55, -2.9), at(len * 0.66, -3.05), at(len * 0.66, 3.05), at(len * 0.55, 2.9)]);
+    poly(g, 0xd4af37, 1, [at(len * 0.53, -3), at(len * 0.55, -2.9), at(len * 0.55, 2.9), at(len * 0.53, 3)]);
+    poly(g, 0xd8b073, 1, [at(7, -1.6), at(len * 0.53, -3), at(len * 0.53, 3), at(7, 1.6)]);
+    poly(g, 0xffffff, 0.2, [at(7, -1.6), at(len * 0.53, -3), at(len * 0.53, -1.2), at(7, -0.5)]);
+    poly(g, 0xf3ead4, 1, [at(1.5, -1.4), at(7, -1.6), at(7, 1.6), at(1.5, 1.4)]);
+    poly(g, 0x5aa6e6, 1, [at(0, -1.3), at(1.5, -1.4), at(1.5, 1.4), at(0, 1.3)]);
   }
 
-  drawGuide() {
+  drawGuide(time) {
     const g = this.gd, s = this.state;
     g.clear();
     if (this.playback || s.over) return;
@@ -434,24 +517,32 @@ export class SnookerScene extends Phaser.Scene {
       a = this.aim.angle;
       power = this.aim.power;
       cue = this.cueBall();
+      if (s.inHand) {
+        g.lineStyle(2, 0xf6e05e, 0.4 + 0.3 * Math.sin(time / 200));
+        g.strokeCircle(TX + cue[0], TY + cue[1], R + 5);
+      }
     } else return;
     const rad = (a * Math.PI) / 180, dx = Math.cos(rad), dy = Math.sin(rad);
     const cx = TX + cue[0], cy = TY + cue[1];
     const gr = this.ray(cue[0], cue[1], dx, dy);
     const ex = TX + gr.x, ey = TY + gr.y;
     const len = Math.sqrt((ex - cx) * (ex - cx) + (ey - cy) * (ey - cy));
-    g.lineStyle(1.6, 0xffffff, 0.7);
-    for (let t = R + 2; t < len; t += 14) {
-      const t2 = Math.min(t + 8, len);
-      g.beginPath();
-      g.moveTo(cx + dx * t, cy + dy * t);
-      g.lineTo(cx + dx * t2, cy + dy * t2);
-      g.strokePath();
+    for (const [w, al] of [[4.5, 0.1], [1.7, 0.75]]) {
+      g.lineStyle(w, 0xffffff, al);
+      for (let t = R + 2; t < len; t += 14) {
+        const t2 = Math.min(t + 8, len);
+        g.beginPath();
+        g.moveTo(cx + dx * t, cy + dy * t);
+        g.lineTo(cx + dx * t2, cy + dy * t2);
+        g.strokePath();
+      }
     }
+    g.fillStyle(0xffffff, 0.14);
+    g.fillCircle(ex, ey, R);
     g.lineStyle(1.6, 0xffffff, 0.85);
     g.strokeCircle(ex, ey, R);
     if (gr.ball >= 0) {
-      g.lineStyle(2, 0xffe08a, 0.85);
+      g.lineStyle(2.4, colOf(gr.ball)[0] === BALL.red[0] ? 0xff8a8a : colOf(gr.ball)[0], 0.9);
       g.beginPath();
       g.moveTo(TX + gr.bx, TY + gr.by);
       g.lineTo(TX + gr.bx + gr.ox * 70, TY + gr.by + gr.oy * 70);
@@ -487,8 +578,10 @@ export class SnookerScene extends Phaser.Scene {
     g.clear();
     [0, 1].forEach((i) => {
       const x = i === 0 ? 140 : 500, active = s.turn === i && !s.over;
-      g.fillStyle(0x0b1a14, 0.6);
+      g.fillStyle(0x0b1a14, 0.62);
       g.fillRoundedRect(x, 8, 260, 56, 14);
+      g.fillStyle(0xffffff, 0.05);
+      g.fillRoundedRect(x + 2, 9, 256, 18, 12);
       g.lineStyle(2, active ? 0xf6e05e : 0xffffff, active ? 0.5 + 0.4 * Math.sin(time / 220) : 0.12);
       g.strokeRoundedRect(x, 8, 260, 56, 14);
       this.scoreT[i].setText(String(s.scores[i]));
@@ -497,39 +590,47 @@ export class SnookerScene extends Phaser.Scene {
       if (s.phase === 'colour') {
         [16, 17, 18, 19, 20, 21].forEach((id, k) => {
           g.fillStyle(colOf(id)[0], 1);
-          g.fillCircle(417 + k * 13, 36, 5.5);
+          g.fillCircle(417 + k * 13, 34, 5.5);
         });
       } else {
         const c = colOf(s.phase === 'red' ? 1 : s.target);
+        g.fillStyle(c[1], 1);
+        g.fillCircle(450, 34, 11);
         g.fillStyle(c[0], 1);
-        g.fillCircle(450, 36, 11);
-        g.lineStyle(1.5, 0xffffff, 0.5);
-        g.strokeCircle(450, 36, 11);
+        g.fillCircle(449, 33, 9.5);
+        g.fillStyle(0xffffff, 0.7);
+        g.fillCircle(446, 30, 2.4);
       }
     }
+    this.brkT.setText(!s.over && this.brk > 0 ? 'Break ' + this.brk : '');
 
     const live = this.myTurnNow() && !this.playback && !this.botAim && !s.over, dim = live ? 1 : 0.35;
-    g.fillStyle(0x0b1a14, 0.55);
-    g.fillRoundedRect(SL.x - 30, 74, 60, 420, 16);
+    g.fillStyle(0x0b1a14, 0.6);
+    g.fillRoundedRect(824, 74, 68, 424, 18);
     g.lineStyle(1.5, 0xffffff, 0.12);
-    g.strokeRoundedRect(SL.x - 30, 74, 60, 420, 16);
-    g.fillStyle(0x000000, 0.5);
-    g.fillRoundedRect(SL.x - 6, SL.top, 12, SL.bot - SL.top, 6);
-    const pw = this.aim.power, fh = (pw / 100) * (SL.bot - SL.top);
-    g.fillStyle(pw < 40 ? 0x4caf50 : pw < 75 ? 0xffb300 : 0xe53935, dim);
-    g.fillRoundedRect(SL.x - 6, SL.bot - fh, 12, fh, 6);
-    g.fillStyle(0xffffff, dim);
-    g.fillCircle(SL.x, SL.bot - fh, 11);
-    g.fillStyle(live ? 0xf6e05e : 0x6b6b5a, 1);
-    g.fillCircle(BTN.shoot.x, BTN.shoot.y, BTN.shoot.r);
-    g.lineStyle(2, 0x000000, 0.35);
-    g.strokeCircle(BTN.shoot.x, BTN.shoot.y, BTN.shoot.r);
+    g.strokeRoundedRect(824, 74, 68, 424, 18);
+
     for (const k of ['nl', 'nr']) {
       g.fillStyle(0x24402f, dim);
       g.fillCircle(BTN[k].x, BTN[k].y, BTN[k].r);
       g.lineStyle(1.5, 0xffffff, 0.3 * dim);
       g.strokeCircle(BTN[k].x, BTN[k].y, BTN[k].r);
     }
+
+    g.fillStyle(0x000000, 0.5);
+    g.fillRoundedRect(SL.x - 7, SL.top, 14, SL.bot - SL.top, 7);
+    const pw = this.aim.power, fh = (pw / 100) * (SL.bot - SL.top);
+    g.fillStyle(pw < 40 ? 0x4caf50 : pw < 75 ? 0xffb300 : 0xe53935, dim);
+    g.fillRoundedRect(SL.x - 7, SL.bot - fh, 14, fh, 7);
+    g.fillStyle(0xffffff, dim);
+    g.fillCircle(SL.x, SL.bot - fh, 11);
+    g.lineStyle(2, 0x000000, 0.25 * dim);
+    g.strokeCircle(SL.x, SL.bot - fh, 11);
+
+    g.fillStyle(live ? 0xf6e05e : 0x6b6b5a, 1);
+    g.fillCircle(BTN.shoot.x, BTN.shoot.y, BTN.shoot.r);
+    g.lineStyle(3, live ? 0xc9a227 : 0x4a4a3d, 1);
+    g.strokeCircle(BTN.shoot.x, BTN.shoot.y, BTN.shoot.r - 2);
     this.powerV.setText(String(pw));
     this.angT.setText(this.aim.angle.toFixed(2) + '°');
   }
@@ -538,7 +639,7 @@ export class SnookerScene extends Phaser.Scene {
     const dt = Math.min(delta / 1000, 0.05);
     this.stepPlayback(dt);
     this.stepNudge(time);
-    this.drawGuide();
+    this.drawGuide(time);
     this.drawUi(time);
     this.refreshStatus();
   }
