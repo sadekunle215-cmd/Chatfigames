@@ -260,26 +260,61 @@ function showMode(g) {
   else botBtn.remove();
 }
 
+const TIPS = {
+  artillery: ['Pull back to aim, release to fire.', 'Drive your tank to dodge incoming rockets.', 'Rockets can collide and explode mid-air.'],
+  connect4: ['Take the center column early.', 'Watch for diagonal threats.', 'Block a three-in-a-row before it grows.'],
+  chess: ['Control the center squares.', 'Develop knights and bishops first.', 'Castle early to keep your king safe.'],
+  checkers: ['Keep your pieces together.', 'Get a king early, kings move both ways.', 'Guard your back row as long as you can.'],
+  snooker: ['Plan the next shot before you take this one.', 'Use gentle power for position play.', 'Use the < > buttons for fine aim.'],
+};
+
 function startSearch(g, stake = 0) {
   if (!isOnline()) { toast('Server unreachable. Starting a game vs the bot.'); openGame(g, null, true); return; }
   teardown();
+  const t = themeOf(g);
+  const tips = TIPS[g.id] || ['Good luck!'];
   app.innerHTML =
-    '<div class="search"><div class="spinner"></div><h2>Finding an opponent…</h2>' +
-    '<p id="sp"></p><button class="pill dark" id="cancel">Cancel</button>' +
-    '<button class="pill light" id="botbtn" style="display:none;border:1px solid #e3e3df">No one yet? Play vs bot</button></div>';
-  const sp = document.getElementById('sp');
-  const upd = () => { sp.textContent = g.name + (stake ? ' · ' + stake + ' USDC test stake' : '') + ' · ' + getOnline(g.id) + ' in this game right now'; };
+    '<div class="finder" style="--g:' + t.grad + ';--ac:' + t.accent + '">' +
+    '<div class="fd-bg">' + t.bg + '</div>' +
+    '<div class="fd-center">' +
+    '<div class="fd-radar"><i></i><i></i><i></i><div class="fd-art">' + (t.art || '') + '</div></div>' +
+    '<h2>Finding an opponent<span class="fd-dots"><b>.</b><b>.</b><b>.</b></span></h2>' +
+    '<div class="fd-name">' + g.name + '</div>' +
+    (stake ? '<div class="fd-stake">' + stake + ' USDC test stake · pot ' + stake * 2 + '</div>' : '') +
+    '<div class="fd-stats"><span><i class="gdot"></i><b id="fd-on"></b> in this game</span><span id="fd-time">0:00</span></div>' +
+    '<p class="fd-tip" id="fd-tip"></p></div>' +
+    '<div class="fd-actions">' +
+    (g.bot ? '<button class="fd-bot" id="botbtn" style="display:none">No one yet? Play vs bot</button>' : '') +
+    '<button class="fd-cancel" id="cancel">Cancel</button></div></div>';
+
+  const onEl = document.getElementById('fd-on');
+  const upd = () => { onEl.textContent = getOnline(g.id); };
   upd();
   cleanups.push(on('presence', upd));
   cleanups.push(on('matched', (m) => { audio.play('match'); openGame(g, m); }));
   send('queue', { game: g.id, stake });
   cleanups.push(on('stake_error', (m) => { toast(m.msg); showLobby(); }));
+
+  const t0 = Date.now(), timeEl = document.getElementById('fd-time'), tipEl = document.getElementById('fd-tip');
+  let ti = 0;
+  tipEl.textContent = tips[0];
+  const clock = setInterval(() => {
+    const sec = Math.floor((Date.now() - t0) / 1000);
+    timeEl.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }, 1000);
+  const tipTimer = setInterval(() => {
+    tipEl.style.opacity = 0;
+    setTimeout(() => { ti = (ti + 1) % tips.length; tipEl.textContent = tips[ti]; tipEl.style.opacity = 1; }, 350);
+  }, 4200);
+  cleanups.push(() => { clearInterval(clock); clearInterval(tipTimer); });
+
   const botTimer = setTimeout(() => {
     const bb = document.getElementById('botbtn');
     if (bb) bb.style.display = '';
   }, 12000);
   cleanups.push(() => clearTimeout(botTimer));
-  document.getElementById('botbtn').addEventListener('click', () => { send('cancel'); openGame(g, null, true); });
+  const bot = document.getElementById('botbtn');
+  if (bot) bot.addEventListener('click', () => { send('cancel'); openGame(g, null, true); });
   document.getElementById('cancel').addEventListener('click', () => { send('cancel'); showLobby(); });
 }
 
