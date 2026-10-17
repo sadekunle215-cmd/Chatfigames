@@ -14,9 +14,30 @@ const BALL = {
 const colOf = (id) => (id === 0 ? BALL.cue : id <= 15 ? BALL.red : BALL[id]);
 const NAMES = { 16: 'yellow', 17: 'green', 18: 'brown', 19: 'blue', 20: 'pink', 21: 'black' };
 
-// right-hand control panel (each control has its own space)
-const SL = { x: 858, top: 198, bot: 362 };
-const BTN = { shoot: { x: 858, y: 440, r: 30 }, nl: { x: 838, y: 120, r: 15 }, nr: { x: 878, y: 120, r: 15 } };
+// Control layouts, in screen-pixel-sized units. Landscape: a side panel. Portrait: a bar under the table.
+function sideLayout() {
+  return {
+    mode: 'side', w: 80, h: 430,
+    nl: { x: 21, y: 48, r: 17 }, nr: { x: 59, y: 48, r: 17 },
+    tFine: { x: 40, y: 18 }, ang: { x: 40, y: 82 }, tPow: { x: 40, y: 110 },
+    slider: { vertical: true, x: 40, y1: 130, y2: 334, t: 18 },
+    powV: { x: 40, y: 358 },
+    shoot: { x: 40, y: 396, r: 30 },
+    f: { fine: 11, ang: 13, pow: 11, val: 20, shoot: 12 },
+  };
+}
+
+function barLayout(wp) {
+  return {
+    mode: 'bar', w: wp, h: 190,
+    nl: { x: 34, y: 32, r: 26 }, nr: { x: 180, y: 32, r: 26 },
+    tFine: { x: 107, y: 10 }, ang: { x: 107, y: 38 },
+    tPow: { x: wp - 70, y: 10 }, powV: { x: wp - 70, y: 40 },
+    slider: { vertical: false, y: 92, x1: 28, x2: wp - 28, t: 20 },
+    shoot: { x: 16, y: 126, w: wp - 32, h: 58 },
+    f: { fine: 10, ang: 16, pow: 10, val: 24, shoot: 20 },
+  };
+}
 
 function drawBall(g, id) {
   const c = colOf(id), r = R * 1.12;
@@ -56,6 +77,8 @@ export class SnookerScene extends Phaser.Scene {
     this.note = '';
     this.noteUntil = 0;
     this.lastSnd = {};
+    this.cmode = null;
+    this.cl = sideLayout();
 
     this.drawRoom();
     this.drawTable();
@@ -65,26 +88,35 @@ export class SnookerScene extends Phaser.Scene {
       return g;
     });
     this.gd = this.add.graphics().setDepth(4);
-    this.ui = this.add.graphics().setDepth(6);
 
-    const t = (x, y, s, size, color, bold) =>
-      this.add.text(x, y, s, { fontFamily: FONT, fontSize: size + 'px', fontStyle: bold ? 'bold' : 'normal', color }).setDepth(7);
-    this.nameT = [0, 1].map((i) => t(i === 0 ? 156 : 516, 14, this.nameOf(i), 15, '#f1e6cc', true));
-    this.scoreT = [0, 1].map((i) => t(i === 0 ? 388 : 748, 10, '0', 34, '#f6e05e', true).setOrigin(1, 0));
-    this.brkT = t(450, 56, '', 11, '#e8dcc2', true).setOrigin(0.5);
-    this.statusT = t(W / 2, 512, '', 16, '#e8dcc2', true).setOrigin(0.5, 0);
-    t(858, 94, 'FINE AIM', 10, '#a9b8a8', true).setOrigin(0.5);
-    t(BTN.nl.x, BTN.nl.y - 1, '‹', 22, '#ffffff', true).setOrigin(0.5);
-    t(BTN.nr.x, BTN.nr.y - 1, '›', 22, '#ffffff', true).setOrigin(0.5);
-    this.angT = t(858, 150, '', 12, '#e8dcc2', false).setOrigin(0.5);
-    t(858, 180, 'POWER', 10, '#a9b8a8', true).setOrigin(0.5);
-    this.powerV = t(858, 384, '55', 16, '#ffffff', true).setOrigin(0.5);
-    t(BTN.shoot.x, BTN.shoot.y, 'SHOOT', 11, '#1a1208', true).setOrigin(0.5);
+    const mk = (x, y, s, size, color, bold) =>
+      this.add.text(x, y, s, { fontFamily: FONT, fontSize: size + 'px', fontStyle: bold ? 'bold' : 'normal', color, resolution: 2 });
+
+    // scoreboard (its own group so it can be scaled for portrait)
+    this.topC = this.add.container(W / 2, 8).setDepth(7);
+    this.sbG = this.add.graphics();
+    this.nameT = [0, 1].map((i) => mk(i === 0 ? -294 : 66, 8, this.nameOf(i), 18, '#f1e6cc', true));
+    this.scoreT = [0, 1].map((i) => mk(i === 0 ? -62 : 298, 4, '0', 38, '#f6e05e', true).setOrigin(1, 0));
+    this.brkT = mk(0, 45, '', 12, '#e8dcc2', true).setOrigin(0.5, 0);
+    this.topC.add([this.sbG, ...this.nameT, ...this.scoreT, this.brkT]);
+
+    this.statusT = mk(W / 2, 512, '', 16, '#e8dcc2', true).setOrigin(0.5, 0).setDepth(7).setAlign('center');
+
+    // controls
+    this.ctlC = this.add.container(818, 70).setDepth(7);
+    this.cG = this.add.graphics();
+    this.tFine = mk(0, 0, 'FINE AIM', 11, '#b7c8b8', true).setOrigin(0.5);
+    this.angT = mk(0, 0, '', 13, '#ffffff', true).setOrigin(0.5);
+    this.tPow = mk(0, 0, 'POWER', 11, '#b7c8b8', true).setOrigin(0.5);
+    this.powV = mk(0, 0, '55', 20, '#ffffff', true).setOrigin(0.5);
+    this.shootT = mk(0, 0, 'SHOOT', 12, '#1a1208', true).setOrigin(0.5);
+    this.ctlC.add([this.cG, this.tFine, this.angT, this.tPow, this.powV, this.shootT]);
 
     this.syncBalls();
 
     this.fit();
-    this.onResize = () => this.fit();
+    this.layout();
+    this.onResize = () => { this.fit(); this.layout(); };
     this.scale.on('resize', this.onResize);
     this.events.once('shutdown', () => this.scale.off('resize', this.onResize));
 
@@ -102,7 +134,37 @@ export class SnookerScene extends Phaser.Scene {
     if (!w || !h) return;
     const cam = this.cameras.main;
     cam.setZoom(Math.min(w / W, h / H));
-    cam.centerOn(W / 2, H / 2);
+    cam.centerOn(W / 2, H / 2 + (h > w ? 70 : 0));
+  }
+
+  // place the scoreboard, status line and controls for the current screen shape
+  layout() {
+    const z = this.cameras.main.zoom, wpx = this.scale.width, hpx = this.scale.height;
+    if (!z || !wpx || !hpx) return;
+    const portrait = hpx > wpx, u = 1 / z;
+    const st = portrait ? (wpx / z - 24) / 640 : 1;
+    this.topC.setScale(st).setPosition(W / 2, portrait ? TY - 54 - 60 * st : 8);
+    this.statusT.setScale(portrait ? u : 1).setPosition(W / 2, portrait ? 498 : 512);
+    this.statusT.setWordWrapWidth(portrait ? wpx - 24 : 700, true);
+
+    const L = portrait ? barLayout(wpx) : sideLayout();
+    this.cl = L;
+    if (portrait) this.ctlC.setScale(u).setPosition(W / 2 - (wpx * u) / 2, 552);
+    else this.ctlC.setScale(1).setPosition(818, 70);
+    if (this.cmode !== L.mode) {
+      this.cmode = L.mode;
+      this.tFine.setFontSize(L.f.fine);
+      this.angT.setFontSize(L.f.ang);
+      this.tPow.setFontSize(L.f.pow);
+      this.powV.setFontSize(L.f.val);
+      this.shootT.setFontSize(L.f.shoot);
+    }
+    this.tFine.setPosition(L.tFine.x, L.tFine.y);
+    this.angT.setPosition(L.ang.x, L.ang.y);
+    this.tPow.setPosition(L.tPow.x, L.tPow.y);
+    this.powV.setPosition(L.powV.x, L.powV.y);
+    if (L.mode === 'side') this.shootT.setPosition(L.shoot.x, L.shoot.y);
+    else this.shootT.setPosition(L.shoot.x + L.shoot.w / 2, L.shoot.y + L.shoot.h / 2);
   }
 
   sfx(n, arg) { if (this.audio) this.audio.play(n, arg); }
@@ -143,7 +205,6 @@ export class SnookerScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(1);
     const fx = TX - 30, fy = TY - 30, fw = TW + 60, fh = TH + 60;
 
-    // frame: shadow, wood, bevels, grain
     g.fillStyle(0x000000, 0.4);
     g.fillRoundedRect(fx + 6, fy + 12, fw, fh, 26);
     g.fillStyle(0x3c1c0e, 1);
@@ -166,7 +227,6 @@ export class SnookerScene extends Phaser.Scene {
     g.lineStyle(2, 0x1f0d05, 1);
     g.strokeRoundedRect(fx, fy, fw, fh, 26);
 
-    // rail sights (ivory diamonds)
     const diamond = (x, y) => poly(g, 0xf1e6c8, 0.9, [[x, y - 4], [x + 3, y], [x, y + 4], [x - 3, y]]);
     for (const k of [1, 2, 3, 5, 6, 7]) {
       diamond(TX + (k * TW) / 8, TY - 24);
@@ -177,7 +237,6 @@ export class SnookerScene extends Phaser.Scene {
       diamond(TX + TW + 24, TY + (k * TH) / 4);
     }
 
-    // cushion backing and cloth
     g.fillStyle(0x07351f, 1);
     g.fillRoundedRect(TX - 15, TY - 15, TW + 30, TH + 30, 12);
     g.fillStyle(0x167a49, 1);
@@ -193,7 +252,6 @@ export class SnookerScene extends Phaser.Scene {
       g.fillRect(TX + rnd() * TW, TY + rnd() * TH, 1.2, 1.2);
     }
 
-    // markings
     g.lineStyle(1.5, 0xe8f2ea, 0.5);
     g.beginPath();
     g.moveTo(TX + XB, TY);
@@ -209,7 +267,6 @@ export class SnookerScene extends Phaser.Scene {
     g.fillStyle(0xe8f2ea, 0.75);
     Object.keys(SPOTS).forEach((id) => g.fillCircle(TX + SPOTS[id][0], TY + SPOTS[id][1], 1.8));
 
-    // cushions with angled jaws
     const cg = 22, mg = 20, th = 15;
     const cushion = (pts, nose) => {
       poly(g, 0x0e7a47, 1, pts);
@@ -225,7 +282,6 @@ export class SnookerScene extends Phaser.Scene {
     cushion([[TX - th, TY + cg], [TX - th, TY + TH - cg], [TX, TY + TH - cg - 11], [TX, TY + cg + 11]], [[TX, TY + cg + 11], [TX, TY + TH - cg - 11]]);
     cushion([[TX + TW + th, TY + cg], [TX + TW + th, TY + TH - cg], [TX + TW, TY + TH - cg - 11], [TX + TW, TY + cg + 11]], [[TX + TW, TY + cg + 11], [TX + TW, TY + TH - cg - 11]]);
 
-    // pockets with brass plates and leather
     POCKETS.forEach((p, i) => {
       const r = i === 1 || i === 4 ? 14.5 : 17;
       g.lineStyle(3, 0xc9a24a, 0.95);
@@ -252,24 +308,48 @@ export class SnookerScene extends Phaser.Scene {
     });
   }
 
+  // ---------- controls: hit testing ----------
+  ctlLocal(w) {
+    return { x: (w.x - this.ctlC.x) / this.ctlC.scaleX, y: (w.y - this.ctlC.y) / this.ctlC.scaleY };
+  }
+
+  hitCtl(lp) {
+    const L = this.cl;
+    const inC = (c, k) => (lp.x - c.x) * (lp.x - c.x) + (lp.y - c.y) * (lp.y - c.y) <= c.r * k * c.r * k;
+    if (L.mode === 'side') {
+      if (inC(L.shoot, 1.1)) return 'shoot';
+    } else if (lp.x >= L.shoot.x && lp.x <= L.shoot.x + L.shoot.w && lp.y >= L.shoot.y && lp.y <= L.shoot.y + L.shoot.h) {
+      return 'shoot';
+    }
+    if (inC(L.nl, 1.25)) return 'nl';
+    if (inC(L.nr, 1.25)) return 'nr';
+    const s = L.slider;
+    const onSlider = s.vertical
+      ? Math.abs(lp.x - s.x) <= 30 && lp.y >= s.y1 - 16 && lp.y <= s.y2 + 16
+      : Math.abs(lp.y - s.y) <= 30 && lp.x >= s.x1 - 16 && lp.x <= s.x2 + 16;
+    if (onSlider) return 'slider';
+    if (lp.x >= 0 && lp.x <= L.w && lp.y >= 0 && lp.y <= L.h) return 'panel';
+    return null;
+  }
+
   // ---------- input ----------
   down(p) {
     const w = this.cameras.main.getWorldPoint(p.x, p.y), s = this.state;
     if (s.over) { if (!this.online) this.scene.restart(); return; }
     if (this.playback || this.botAim || !this.myTurnNow()) return;
-    const d2 = (a, b) => (w.x - a) * (w.x - a) + (w.y - b) * (w.y - b);
-    if (d2(BTN.shoot.x, BTN.shoot.y) <= BTN.shoot.r * BTN.shoot.r) { this.shoot(); return; }
-    for (const k of ['nl', 'nr']) {
-      if (d2(BTN[k].x, BTN[k].y) <= BTN[k].r * BTN[k].r * 1.7) {
-        this.nudge = { id: p.id, dir: k === 'nl' ? -1 : 1, next: 0, first: true };
-        return;
-      }
-    }
-    if (Math.abs(w.x - SL.x) <= 26 && w.y >= SL.top - 14 && w.y <= SL.bot + 14) {
-      this.drag = { id: p.id, mode: 'power' };
-      this.setPower(w);
+    const lp = this.ctlLocal(w), hit = this.hitCtl(lp);
+    if (hit === 'shoot') { this.sfx('select'); this.shoot(); return; }
+    if (hit === 'nl' || hit === 'nr') {
+      this.nudge = { id: p.id, dir: hit === 'nl' ? -1 : 1, next: 0, first: true };
+      this.sfx('select');
       return;
     }
+    if (hit === 'slider') {
+      this.drag = { id: p.id, mode: 'power' };
+      this.setPower(lp);
+      return;
+    }
+    if (hit === 'panel') return;
     if (s.inHand) {
       const tx = w.x - TX, ty = w.y - TY;
       const inD = tx <= XB + 4 && (tx - XB) * (tx - XB) + (ty - TH / 2) * (ty - TH / 2) <= (DR + 6) * (DR + 6);
@@ -282,7 +362,7 @@ export class SnookerScene extends Phaser.Scene {
   move(p) {
     if (!this.drag || p.id !== this.drag.id) return;
     const w = this.cameras.main.getWorldPoint(p.x, p.y);
-    if (this.drag.mode === 'power') this.setPower(w);
+    if (this.drag.mode === 'power') this.setPower(this.ctlLocal(w));
     else if (this.drag.mode === 'place') this.place(w);
     else this.setAim(w);
   }
@@ -301,8 +381,10 @@ export class SnookerScene extends Phaser.Scene {
     this.aim.angle = Math.round(((Math.atan2(dy, dx) * 180) / Math.PI) * 20) / 20;
   }
 
-  setPower(w) {
-    this.aim.power = clamp(Math.round(((SL.bot - w.y) / (SL.bot - SL.top)) * 100), 1, 100);
+  setPower(lp) {
+    const s = this.cl.slider;
+    const f = s.vertical ? (s.y2 - lp.y) / (s.y2 - s.y1) : (lp.x - s.x1) / (s.x2 - s.x1);
+    this.aim.power = clamp(Math.round(f * 100), 1, 100);
   }
 
   place(w) {
@@ -573,74 +655,126 @@ export class SnookerScene extends Phaser.Scene {
     this.statusT.setText(t);
   }
 
-  drawUi(time) {
-    const g = this.ui, s = this.state;
+  drawScore(time) {
+    const g = this.sbG, s = this.state;
     g.clear();
     [0, 1].forEach((i) => {
-      const x = i === 0 ? 140 : 500, active = s.turn === i && !s.over;
-      g.fillStyle(0x0b1a14, 0.62);
-      g.fillRoundedRect(x, 8, 260, 56, 14);
+      const x = i === 0 ? -310 : 50, active = s.turn === i && !s.over;
+      g.fillStyle(0x0b1a14, 0.8);
+      g.fillRoundedRect(x, 0, 260, 60, 14);
       g.fillStyle(0xffffff, 0.05);
-      g.fillRoundedRect(x + 2, 9, 256, 18, 12);
-      g.lineStyle(2, active ? 0xf6e05e : 0xffffff, active ? 0.5 + 0.4 * Math.sin(time / 220) : 0.12);
-      g.strokeRoundedRect(x, 8, 260, 56, 14);
+      g.fillRoundedRect(x + 2, 1, 256, 20, 12);
+      g.lineStyle(2.5, active ? 0xf6e05e : 0xffffff, active ? 0.55 + 0.4 * Math.sin(time / 220) : 0.16);
+      g.strokeRoundedRect(x, 0, 260, 60, 14);
       this.scoreT[i].setText(String(s.scores[i]));
     });
     if (!s.over) {
       if (s.phase === 'colour') {
         [16, 17, 18, 19, 20, 21].forEach((id, k) => {
           g.fillStyle(colOf(id)[0], 1);
-          g.fillCircle(417 + k * 13, 34, 5.5);
+          g.fillCircle(-32.5 + k * 13, 26, 5.5);
         });
       } else {
         const c = colOf(s.phase === 'red' ? 1 : s.target);
         g.fillStyle(c[1], 1);
-        g.fillCircle(450, 34, 11);
+        g.fillCircle(0, 24, 11);
         g.fillStyle(c[0], 1);
-        g.fillCircle(449, 33, 9.5);
+        g.fillCircle(-1, 23, 9.5);
         g.fillStyle(0xffffff, 0.7);
-        g.fillCircle(446, 30, 2.4);
+        g.fillCircle(-4, 20, 2.4);
       }
     }
     this.brkT.setText(!s.over && this.brk > 0 ? 'Break ' + this.brk : '');
+  }
 
-    const live = this.myTurnNow() && !this.playback && !this.botAim && !s.over, dim = live ? 1 : 0.35;
-    g.fillStyle(0x0b1a14, 0.6);
-    g.fillRoundedRect(824, 74, 68, 424, 18);
-    g.lineStyle(1.5, 0xffffff, 0.12);
-    g.strokeRoundedRect(824, 74, 68, 424, 18);
+  drawCtl(time) {
+    const g = this.cG, L = this.cl, s = this.state;
+    g.clear();
+    const live = this.myTurnNow() && !this.playback && !this.botAim && !s.over, dim = live ? 1 : 0.4;
+    const pw = this.aim.power, col = pw < 40 ? 0x4caf50 : pw < 75 ? 0xffb300 : 0xe53935;
+    const rad = L.mode === 'side' ? 18 : 20;
 
-    for (const k of ['nl', 'nr']) {
-      g.fillStyle(0x24402f, dim);
-      g.fillCircle(BTN[k].x, BTN[k].y, BTN[k].r);
-      g.lineStyle(1.5, 0xffffff, 0.3 * dim);
-      g.strokeCircle(BTN[k].x, BTN[k].y, BTN[k].r);
+    g.fillStyle(0x0b1a14, 0.84);
+    g.fillRoundedRect(0, 0, L.w, L.h, rad);
+    g.lineStyle(2, 0xffffff, 0.22);
+    g.strokeRoundedRect(0, 0, L.w, L.h, rad);
+
+    [['nl', -1], ['nr', 1]].forEach(([k, sign]) => {
+      const b = L[k], down = this.nudge && this.nudge.dir === sign;
+      g.fillStyle(down ? 0x3f8f63 : 0x1d4a33, dim);
+      g.fillCircle(b.x, b.y, b.r);
+      g.lineStyle(2, 0xffffff, 0.6 * dim);
+      g.strokeCircle(b.x, b.y, b.r);
+      g.fillStyle(0xffffff, dim);
+      const a = b.r * 0.45;
+      g.fillTriangle(b.x + sign * a, b.y, b.x - sign * a * 0.8, b.y - a, b.x - sign * a * 0.8, b.y + a);
+    });
+
+    const sl = L.slider;
+    if (sl.vertical) {
+      const len = sl.y2 - sl.y1, fh = (len * pw) / 100, hy = sl.y2 - fh;
+      g.fillStyle(0x000000, 0.6);
+      g.fillRoundedRect(sl.x - sl.t / 2, sl.y1, sl.t, len, sl.t / 2);
+      g.fillStyle(col, dim);
+      g.fillRoundedRect(sl.x - sl.t / 2, hy, sl.t, Math.max(fh, 1), Math.min(sl.t / 2, Math.max(fh, 1) / 2));
+      g.lineStyle(2, 0xffffff, 0.35 * dim);
+      for (let k = 0; k <= 4; k++) {
+        const y = sl.y2 - (len * k) / 4;
+        g.beginPath(); g.moveTo(sl.x - sl.t / 2 - 9, y); g.lineTo(sl.x - sl.t / 2 - 3, y); g.strokePath();
+      }
+      g.fillStyle(0xffffff, dim);
+      g.fillCircle(sl.x, hy, 14);
+      g.lineStyle(2, 0x000000, 0.3 * dim);
+      g.strokeCircle(sl.x, hy, 14);
+    } else {
+      const len = sl.x2 - sl.x1, fw = (len * pw) / 100, hx = sl.x1 + fw;
+      g.fillStyle(0x000000, 0.6);
+      g.fillRoundedRect(sl.x1, sl.y - sl.t / 2, len, sl.t, sl.t / 2);
+      g.fillStyle(col, dim);
+      g.fillRoundedRect(sl.x1, sl.y - sl.t / 2, Math.max(fw, 1), sl.t, Math.min(sl.t / 2, Math.max(fw, 1) / 2));
+      g.lineStyle(2, 0xffffff, 0.35 * dim);
+      for (let k = 0; k <= 4; k++) {
+        const x = sl.x1 + (len * k) / 4;
+        g.beginPath(); g.moveTo(x, sl.y + sl.t / 2 + 3); g.lineTo(x, sl.y + sl.t / 2 + 9); g.strokePath();
+      }
+      g.fillStyle(0xffffff, dim);
+      g.fillCircle(hx, sl.y, 17);
+      g.lineStyle(2, 0x000000, 0.3 * dim);
+      g.strokeCircle(hx, sl.y, 17);
     }
 
-    g.fillStyle(0x000000, 0.5);
-    g.fillRoundedRect(SL.x - 7, SL.top, 14, SL.bot - SL.top, 7);
-    const pw = this.aim.power, fh = (pw / 100) * (SL.bot - SL.top);
-    g.fillStyle(pw < 40 ? 0x4caf50 : pw < 75 ? 0xffb300 : 0xe53935, dim);
-    g.fillRoundedRect(SL.x - 7, SL.bot - fh, 14, fh, 7);
-    g.fillStyle(0xffffff, dim);
-    g.fillCircle(SL.x, SL.bot - fh, 11);
-    g.lineStyle(2, 0x000000, 0.25 * dim);
-    g.strokeCircle(SL.x, SL.bot - fh, 11);
-
-    g.fillStyle(live ? 0xf6e05e : 0x6b6b5a, 1);
-    g.fillCircle(BTN.shoot.x, BTN.shoot.y, BTN.shoot.r);
-    g.lineStyle(3, live ? 0xc9a227 : 0x4a4a3d, 1);
-    g.strokeCircle(BTN.shoot.x, BTN.shoot.y, BTN.shoot.r - 2);
-    this.powerV.setText(String(pw));
+    const b = L.shoot, base = live ? 0xf6e05e : 0x6b6b5a, rim = live ? 0xc9a227 : 0x4a4a3d;
+    if (L.mode === 'side') {
+      g.fillStyle(base, 1);
+      g.fillCircle(b.x, b.y, b.r);
+      g.lineStyle(3, rim, 1);
+      g.strokeCircle(b.x, b.y, b.r - 3);
+      if (live) {
+        g.lineStyle(2, 0xf6e05e, 0.5 + 0.4 * Math.sin(time / 260));
+        g.strokeCircle(b.x, b.y, b.r + 4);
+      }
+    } else {
+      g.fillStyle(base, 1);
+      g.fillRoundedRect(b.x, b.y, b.w, b.h, b.h / 2);
+      g.lineStyle(3, rim, 1);
+      g.strokeRoundedRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4, b.h / 2 - 2);
+      if (live) {
+        g.lineStyle(2, 0xf6e05e, 0.5 + 0.4 * Math.sin(time / 260));
+        g.strokeRoundedRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, b.h / 2 + 3);
+      }
+    }
+    this.powV.setText(String(pw));
     this.angT.setText(this.aim.angle.toFixed(2) + '°');
   }
 
   update(time, delta) {
     const dt = Math.min(delta / 1000, 0.05);
+    this.layout();
     this.stepPlayback(dt);
     this.stepNudge(time);
     this.drawGuide(time);
-    this.drawUi(time);
+    this.drawScore(time);
+    this.drawCtl(time);
     this.refreshStatus();
   }
 }
