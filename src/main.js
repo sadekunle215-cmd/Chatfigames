@@ -6,6 +6,7 @@ import { mountChat } from './platform/chat.js';
 import { audio } from './platform/audio.js';
 import { themedCard } from './platform/cards.js';
 import { heroDecor } from './platform/hero.js';
+import { wallet } from './platform/wallet.js';
 
 const app = document.getElementById('app');
 const me = {
@@ -116,6 +117,85 @@ function cardHtml(g) {
   );
 }
 
+const short = (a) => a.slice(0, 4) + '…' + a.slice(-4);
+let authNonce = null, authed = false, lastAddr = null;
+on('challenge', (m) => { authNonce = m.nonce; authed = false; });
+wallet.subscribe(() => {
+  if (wallet.state.address !== lastAddr) { lastAddr = wallet.state.address; authed = false; }
+});
+setTimeout(() => wallet.restore(), 500);
+
+function sheet(html) {
+  const bg = document.createElement('div');
+  bg.className = 'sheet-bg';
+  bg.innerHTML = '<div class="sheet">' + html + '</div>';
+  bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+  return bg;
+}
+
+function showWalletInstall() {
+  const here = encodeURIComponent(location.href), ref = encodeURIComponent(location.origin);
+  const st = 'display:block;text-align:center;text-decoration:none;';
+  sheet('<h3>Connect a wallet</h3><p>Open ChatFi Play inside your wallet app to connect.</p>' +
+    '<a class="btn primary" style="' + st + '" href="https://phantom.app/ul/browse/' + here + '?ref=' + ref + '">Open in Phantom</a>' +
+    '<a class="btn ghost" style="' + st + '" href="https://solflare.com/ul/v1/browse/' + here + '?ref=' + ref + '">Open in Solflare</a>');
+}
+
+function showWalletSheet() {
+  const s = wallet.state;
+  const bg = sheet('<h3>Wallet</h3><p>' + short(s.address) + ' · ' + wallet.network + '</p><p>' +
+    (s.balance == null ? '' : s.balance.toFixed(2) + ' USDC') +
+    '</p><button class="btn ghost" id="w-out">Disconnect</button>');
+  bg.querySelector('#w-out').addEventListener('click', () => { wallet.disconnect(); bg.remove(); });
+}
+
+async function connectFlow() {
+  try { await wallet.connect(); return true; }
+  catch (e) {
+    if (e && e.code === 'no-wallet') showWalletInstall();
+    else toast('Wallet connection cancelled');
+    return false;
+  }
+}
+
+function ensureAuth() {
+  if (authed) return Promise.resolve(true);
+  if (!isOnline() || !authNonce) { toast('Server unreachable. Try again in a moment.'); return Promise.resolve(false); }
+  return wallet.sign(authNonce).then((r) => new Promise((resolve) => {
+    const off1 = on('auth_ok', () => { off1(); off2(); authed = true; resolve(true); });
+    const off2 = on('auth_fail', () => { off1(); off2(); toast('Wallet verification failed'); resolve(false); });
+    send('auth', { pubkey: r.pubkey, sig: r.sig });
+  })).catch(() => { toast('Signature cancelled'); return false; });
+}
+
+async function showStakePicker(g) {
+  if (!wallet.state.address && !(await connectFlow())) return;
+  if (!(await ensureAuth())) return;
+  const bg = sheet('<h3>' + g.name + '</h3><p>Pick a test stake (devnet, no real funds move yet)</p>' +
+    '<button class="btn primary" data-s="1">1 USDC</button>' +
+    '<button class="btn primary" data-s="5">5 USDC</button>' +
+    '<button class="btn primary" data-s="10">10 USDC</button>');
+  bg.querySelectorAll('[data-s]').forEach((b) =>
+    b.addEventListener('click', () => { bg.remove(); startSearch(g, Number(b.dataset.s)); }));
+}
+
+function bindWallet() {
+  const b = document.getElementById('wallet');
+  const paint = () => {
+    const s = wallet.state;
+    b.textContent = s.address
+      ? short(s.address) + (s.balance != null ? ' · ' + s.balance.toFixed(2) + ' USDC' : '')
+      : 'Connect wallet';
+  };
+  paint();
+  cleanups.push(wallet.subscribe(paint));
+  b.addEventListener('click', () => {
+    if (wallet.state.address) showWalletSheet();
+    else connectFlow();
+  });
+}
+
 function showLobby() {
   teardown();
   send('status', { game: null });
@@ -129,7 +209,7 @@ function showLobby() {
     '<p>1v1 games where the winner takes it all. Every move verifiable.</p>' +
     '<div class="steps"><span><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg> Pick a game</span><span><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.84 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z"/></svg> Stake</span><span><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg> Win</span></div>' +
     '<button class="pill light" id="quick">Quick play <span>→</span></button>' +
-    '<span class="soon">Free practice now · USDC stakes are coming soon</span></section>' +
+    '<span class="soon">Free play now · test stakes on devnet, no real funds yet</span></section>' +
     '<h3 class="sec">Games</h3><div class="games">' + GAMES.map((g, i) => themedCard(g, getOnline(g.id), i)).join('') + '</div>' +
     '<h3 class="sec">Coming soon</h3>' +
     '<div class="chips"><span>Battleship</span><span>Reversi</span><span>Air Hockey</span><span>Pool</span><span>Your game?</span></div>' +
@@ -140,7 +220,7 @@ function showLobby() {
   document.getElementById('snd-slot').replaceWith(soundButton());
   app.querySelectorAll('.card').forEach((el) =>
     el.addEventListener('click', () => showMode(GAMES.find((g) => g.id === el.dataset.id))));
-  document.getElementById('wallet').addEventListener('click', () => toast('Wallet connect is coming next'));
+  bindWallet();
   document.getElementById('quick').addEventListener('click', () =>
     startSearch(GAMES[Math.floor(Math.random() * GAMES.length)]));
 
@@ -154,12 +234,14 @@ function showMode(g) {
   bg.innerHTML =
     '<div class="sheet"><h3></h3><p>Choose how to play</p>' +
     '<button class="btn primary" id="m-online">Play online</button>' +
+    '<button class="btn ghost" id="m-stake">Play online · test stake</button>' +
     '<button class="btn ghost" id="m-bot">Play vs bot</button>' +
     '<button class="btn ghost" id="m-local">Play on this phone (2 players)</button></div>';
   bg.querySelector('h3').textContent = g.name;
   bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
   bg.querySelector('#m-online').addEventListener('click', () => { bg.remove(); startSearch(g); });
+  bg.querySelector('#m-stake').addEventListener('click', () => { bg.remove(); showStakePicker(g); });
   if (g.local === false) bg.querySelector('#m-local').remove();
   else bg.querySelector('#m-local').addEventListener('click', () => { bg.remove(); openGame(g); });
   const botBtn = bg.querySelector('#m-bot');
@@ -167,7 +249,7 @@ function showMode(g) {
   else botBtn.remove();
 }
 
-function startSearch(g) {
+function startSearch(g, stake = 0) {
   if (!isOnline()) { toast('Server unreachable. Starting a game vs the bot.'); openGame(g, null, true); return; }
   teardown();
   app.innerHTML =
@@ -175,11 +257,12 @@ function startSearch(g) {
     '<p id="sp"></p><button class="pill dark" id="cancel">Cancel</button>' +
     '<button class="pill light" id="botbtn" style="display:none;border:1px solid #e3e3df">No one yet? Play vs bot</button></div>';
   const sp = document.getElementById('sp');
-  const upd = () => { sp.textContent = g.name + ' · ' + getOnline(g.id) + ' in this game right now'; };
+  const upd = () => { sp.textContent = g.name + (stake ? ' · ' + stake + ' USDC test stake' : '') + ' · ' + getOnline(g.id) + ' in this game right now'; };
   upd();
   cleanups.push(on('presence', upd));
   cleanups.push(on('matched', (m) => { audio.play('match'); openGame(g, m); }));
-  send('queue', { game: g.id });
+  send('queue', { game: g.id, stake });
+  cleanups.push(on('stake_error', (m) => { toast(m.msg); showLobby(); }));
   const botTimer = setTimeout(() => {
     const bb = document.getElementById('botbtn');
     if (bb) bb.style.display = '';
@@ -218,7 +301,7 @@ function openGame(g, match, vsBot) {
     };
     const vs = document.createElement('div');
     vs.className = 'vs';
-    vs.textContent = 'vs ' + match.opponent.name;
+    vs.textContent = 'vs ' + match.opponent.name + (match.stake ? ' · pot ' + match.stake * 2 + ' USDC (test)' : '');
     stage.appendChild(vs);
     cleanups.push(on('opponent_left', () => {
       vs.textContent = 'Opponent left';

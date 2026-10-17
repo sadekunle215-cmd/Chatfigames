@@ -1,12 +1,39 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 
 const PORT = process.env.PORT || 8787;
 const GAME_IDS = new Set(['artillery', 'connect4', 'chess', 'checkers', 'snooker']);
+const STAKES = new Set([0, 1, 5, 10]);   // test stake tiers in USDC (0 = free play)
 const RT_GAMES = new Set(['artillery']); // real-time games: the server sequences inputs
 const RT_DELAY = 8;                       // inputs take effect 8 ticks (about 130 ms) after arriving
 const TICK_MS = 1000 / 60;
 const rtTimers = new Map();               // room -> { t0, timer }
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58decode(s) {
+  let n = 0n;
+  for (const ch of s) {
+    const i = B58.indexOf(ch);
+    if (i < 0) return null;
+    n = n * 58n + BigInt(i);
+  }
+  let hex = n.toString(16);
+  if (hex.length % 2) hex = '0' + hex;
+  const bytes = n === 0n ? Buffer.alloc(0) : Buffer.from(hex, 'hex');
+  let zeros = 0;
+  while (zeros < s.length && s[zeros] === '1') zeros++;
+  return Buffer.concat([Buffer.alloc(zeros), bytes]);
+}
+function verifyWallet(pubkey, nonce, sigB64) {
+  try {
+    const raw = b58decode(String(pubkey));
+    if (!raw || raw.length !== 32) return false;
+    const der = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), raw]);
+    const key = crypto.createPublicKey({ key: der, format: 'der', type: 'spki' });
+    const msg = Buffer.from('ChatFi Play sign-in\nNonce: ' + nonce);
+    return crypto.verify(null, msg, key, Buffer.from(String(sigB64), 'base64'));
+  } catch (_) { return false; }
+}
 const server = http.createServer((req, res) => { res.writeHead(200); res.end('ChatFi matchmaking server'); });
 const wss = new WebSocketServer({ server });
 server.listen(PORT, '0.0.0.0');
@@ -60,8 +87,8 @@ function leaveRoom(ws) {
   c.side = null;
 }
 
-function tryMatch(gameId) {
-  const q = queues[gameId] || [];
+function tryMatch(key, gameId, stake) {
+  const q = queues[key] || [];
   while (q.length >= 2) {
     let a = q.shift();
     let b = q.shift();
@@ -72,15 +99,17 @@ function tryMatch(gameId) {
     rooms.set(room, [a, b]);
     ca.room = cb.room = room;
     ca.side = 0; cb.side = 1;
-    send(a, { type: 'matched', room, side: 0, seed, game: gameId, opponent: { name: cb.name } });
-    send(b, { type: 'matched', room, side: 1, seed, game: gameId, opponent: { name: ca.name } });
+    send(a, { type: 'matched', room, side: 0, seed, game: gameId, stake, opponent: { name: cb.name } });
+    send(b, { type: 'matched', room, side: 1, seed, game: gameId, stake, opponent: { name: ca.name } });
     if (RT_GAMES.has(gameId)) startRT(room, a, b);
     console.log('matched', gameId, ca.name, 'vs', cb.name);
   }
 }
 
 wss.on('connection', (ws) => {
-  clients.set(ws, { name: 'Player', game: null, room: null, side: null, lastChat: 0 });
+  const nonce = crypto.randomBytes(16).toString('hex');
+  clients.set(ws, { name: 'Player', game: null, room: null, side: null, lastChat: 0, wallet: null, nonce });
+  send(ws, { type: 'challenge', nonce });
   broadcastPresence();
 
   ws.on('message', (raw) => {
@@ -96,6 +125,16 @@ wss.on('connection', (ws) => {
         c.name = String(m.name || 'Player').slice(0, 24);
         break;
 
+      case 'auth':
+        if (c.nonce && verifyWallet(m.pubkey, c.nonce, m.sig)) {
+          c.wallet = String(m.pubkey);
+          c.name = c.wallet.slice(0, 4) + '…' + c.wallet.slice(-4);
+          send(ws, { type: 'auth_ok', wallet: c.wallet });
+        } else {
+          send(ws, { type: 'auth_fail' });
+        }
+        break;
+
       case 'status':
         leaveRoom(ws);
         dequeue(ws);
@@ -108,9 +147,15 @@ wss.on('connection', (ws) => {
         dequeue(ws);
         if (GAME_IDS.has(m.game)) {
           c.game = m.game;
-          (queues[m.game] = queues[m.game] || []).push(ws);
+          const stake = STAKES.has(m.stake) ? m.stake : 0;
+          if (stake > 0 && !c.wallet) {
+            send(ws, { type: 'stake_error', msg: 'Connect and verify your wallet first' });
+            break;
+          }
+          const key = m.game + ':' + stake;
+          (queues[key] = queues[key] || []).push(ws);
           broadcastPresence();
-          tryMatch(m.game);
+          tryMatch(key, m.game, stake);
         }
         break;
 
