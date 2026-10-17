@@ -139,7 +139,8 @@ function showWalletInstall() {
   const st = 'display:block;text-align:center;text-decoration:none;';
   sheet('<h3>Connect a wallet</h3><p>Open ChatFi Play inside your wallet app to connect.</p>' +
     '<a class="btn primary" style="' + st + '" href="https://phantom.app/ul/browse/' + here + '?ref=' + ref + '">Open in Phantom</a>' +
-    '<a class="btn ghost" style="' + st + '" href="https://solflare.com/ul/v1/browse/' + here + '?ref=' + ref + '">Open in Solflare</a>');
+    '<a class="btn ghost" style="' + st + '" href="https://solflare.com/ul/v1/browse/' + here + '?ref=' + ref + '">Open in Solflare</a>' +
+    '<a class="btn ghost" style="' + st + '" href="https://chatfi.pro" target="_blank" rel="noopener">Open in ChatFi</a>');
 }
 
 function showWalletSheet() {
