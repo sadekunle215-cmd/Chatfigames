@@ -104,3 +104,13 @@ export function themedCard(g, online, i) {
     '<span class="gplay">PLAY</span></button>'
   );
 }
+
+export function sheetBanner(g) {
+  const t = THEME[g.id] || FALLBACK;
+  return (
+    '<div class="sbanner" style="--g:' + t.grad + ';--ac:' + t.accent + '">' +
+    '<div class="sb-bg">' + t.bg + '</div>' +
+    '<div class="sb-art">' + (t.art || '') + '</div>' +
+    '<div class="sb-name">' + g.name + '</div></div>'
+  );
+}

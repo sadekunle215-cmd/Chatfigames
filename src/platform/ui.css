@@ -123,3 +123,13 @@ html, body { overscroll-behavior: none; }
 /* hero chips: center icon with label */
 .hero .steps span { display: inline-flex; align-items: center; gap: 7px; line-height: 1; }
 .hero .steps span svg { display: block; flex: none; width: 16px; height: 16px; }
+
+/* game sheet banner */
+.sbanner { position:relative; height:150px; margin:-20px -18px 14px; border-radius:24px 24px 0 0; overflow:hidden; background:var(--g); }
+.sbanner .sb-bg, .sbanner .sb-art { position:absolute; }
+.sbanner .sb-bg { inset:0; }
+.sbanner .sb-bg svg { width:100%; height:100%; display:block; }
+.sbanner .sb-art { right:14px; bottom:8px; width:108px; height:108px; filter:drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.sbanner .sb-art svg { width:100%; height:100%; display:block; }
+.sbanner::after { content:''; position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.5), rgba(0,0,0,0) 60%); pointer-events:none; }
+.sbanner .sb-name { position:absolute; left:18px; bottom:14px; z-index:1; color:#fff; font-size:26px; font-weight:700; text-shadow:0 2px 8px rgba(0,0,0,.4); }

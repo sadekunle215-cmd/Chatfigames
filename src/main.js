@@ -4,7 +4,7 @@ import { getOnline, getTotal } from './presence.js';
 import { connect, on, send, isOnline } from './platform/net.js';
 import { mountChat } from './platform/chat.js';
 import { audio } from './platform/audio.js';
-import { themedCard } from './platform/cards.js';
+import { themedCard, sheetBanner } from './platform/cards.js';
 import { heroDecor } from './platform/hero.js';
 import { wallet } from './platform/wallet.js';
 
@@ -238,7 +238,8 @@ function showMode(g) {
     '<button class="btn ghost" id="m-stake">Play online · test stake</button>' +
     '<button class="btn ghost" id="m-bot">Play vs bot</button>' +
     '<button class="btn ghost" id="m-local">Play on this phone (2 players)</button></div>';
-  bg.querySelector('h3').textContent = g.name;
+  bg.querySelector('.sheet').insertAdjacentHTML('afterbegin', sheetBanner(g));
+  bg.querySelector('h3').remove();
   bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
   bg.querySelector('#m-online').addEventListener('click', () => { bg.remove(); startSearch(g); });
