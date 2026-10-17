@@ -105,12 +105,19 @@ export function themedCard(g, online, i) {
   );
 }
 
-export function sheetBanner(g) {
-  const t = THEME[g.id] || FALLBACK;
+export const themeOf = (g) => THEME[g.id] || FALLBACK;
+
+export function sheetBanner(g, online) {
+  const t = themeOf(g);
   return (
     '<div class="sbanner" style="--g:' + t.grad + ';--ac:' + t.accent + '">' +
     '<div class="sb-bg">' + t.bg + '</div>' +
     '<div class="sb-art">' + (t.art || '') + '</div>' +
-    '<div class="sb-name">' + g.name + '</div></div>'
+    '<span class="sb-handle"></span>' +
+    '<button class="sb-close" id="sb-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
+    '<div class="sb-txt"><div class="sb-name">' + g.name + '</div>' +
+    '<div class="sb-tag">' + g.tagline + '</div>' +
+    '<div class="sb-chips"><span>' + (g.tier === 'verified' ? '✓ Verified' : 'Referee') + '</span>' +
+    '<span><i></i>' + online + ' playing</span></div></div></div>'
   );
 }

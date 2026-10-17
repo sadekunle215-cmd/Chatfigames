@@ -4,7 +4,7 @@ import { getOnline, getTotal } from './presence.js';
 import { connect, on, send, isOnline } from './platform/net.js';
 import { mountChat } from './platform/chat.js';
 import { audio } from './platform/audio.js';
-import { themedCard, sheetBanner } from './platform/cards.js';
+import { themedCard, sheetBanner, themeOf } from './platform/cards.js';
 import { heroDecor } from './platform/hero.js';
 import { wallet } from './platform/wallet.js';
 
@@ -232,16 +232,25 @@ function showLobby() {
 function showMode(g) {
   const bg = document.createElement('div');
   bg.className = 'sheet-bg';
+  const row = (id, ic, t, d, pri) =>
+    '<button class="mrow' + (pri ? ' pri' : '') + '" id="' + id + '"><span class="mic">' + ic + '</span>' +
+    '<span class="mtx"><b>' + t + '</b><small>' + d + '</small></span><span class="mgo">›</span></button>';
+  const I_NET = SVG('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>');
+  const I_COIN = SVG('<circle cx="12" cy="12" r="9"/><path d="M14.5 9.2c-.4-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.8-2.5 1.8-1.1 0-2.1-.4-2.5-1.2M12 6.5V8m0 8v1.5"/>');
+  const I_BOT = SVG('<rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4M9 13h.01M15 13h.01M9 16h6"/>');
+  const I_PHONE = SVG('<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M11 18h2"/>');
   bg.innerHTML =
-    '<div class="sheet"><h3></h3><p>Choose how to play</p>' +
-    '<button class="btn primary" id="m-online">Play online</button>' +
-    '<button class="btn ghost" id="m-stake">Play online · test stake</button>' +
-    '<button class="btn ghost" id="m-bot">Play vs bot</button>' +
-    '<button class="btn ghost" id="m-local">Play on this phone (2 players)</button></div>';
-  bg.querySelector('.sheet').insertAdjacentHTML('afterbegin', sheetBanner(g));
-  bg.querySelector('h3').remove();
+    '<div class="sheet gsheet">' + sheetBanner(g, getOnline(g.id)) +
+    row('m-online', I_NET, 'Play online', 'Free match against a real player', true) +
+    row('m-stake', I_COIN, 'Test stake', 'Wager 1, 5 or 10 test USDC on devnet') +
+    row('m-bot', I_BOT, 'Play vs bot', 'Practice solo, no waiting') +
+    row('m-local', I_PHONE, 'Pass &amp; play', 'Two players on this phone') +
+    '</div>';
+  const sh = bg.querySelector('.sheet');
+  sh.style.setProperty('--ac', themeOf(g).accent);
   bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
   document.body.appendChild(bg);
+  bg.querySelector('#sb-close').addEventListener('click', () => bg.remove());
   bg.querySelector('#m-online').addEventListener('click', () => { bg.remove(); startSearch(g); });
   bg.querySelector('#m-stake').addEventListener('click', () => { bg.remove(); showStakePicker(g); });
   if (g.local === false) bg.querySelector('#m-local').remove();
