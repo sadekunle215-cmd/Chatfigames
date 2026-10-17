@@ -5,6 +5,7 @@ import { connect, on, send, isOnline } from './platform/net.js';
 import { mountChat } from './platform/chat.js';
 import { audio } from './platform/audio.js';
 import { themedCard } from './platform/cards.js';
+import { heroDecor } from './platform/hero.js';
 
 const app = document.getElementById('app');
 const me = {
@@ -122,11 +123,13 @@ function showLobby() {
     '<div class="scroll">' +
     '<header class="top"><div class="brand"><span class="mark"></span>ChatFi <b>Play</b></div>' +
     '<div class="tools"><span id="snd-slot"></span><button class="pill dark" id="wallet">Connect wallet</button></div></header>' +
-    '<section class="hero">' +
+    '<section class="hero">' + heroDecor() +
     '<div class="eyebrow"><span class="live"></span><span id="total">' + totalText() + '</span></div>' +
-    '<h1>Play. Stake.<br/>Win the pot.</h1>' +
+    '<h1>Play. Stake.<br/><span class="gold">Win the pot.</span></h1>' +
     '<p>1v1 games where the winner takes it all. Every move verifiable.</p>' +
-    '<button class="pill light" id="quick">Quick play <span>→</span></button></section>' +
+    '<div class="steps"><span>🎮 Pick a game</span><span>🪙 Stake</span><span>🏆 Win</span></div>' +
+    '<button class="pill light" id="quick">Quick play <span>→</span></button>' +
+    '<span class="soon">Free practice now · USDC stakes are coming soon</span></section>' +
     '<h3 class="sec">Games</h3><div class="games">' + GAMES.map((g, i) => themedCard(g, getOnline(g.id), i)).join('') + '</div>' +
     '<h3 class="sec">Coming soon</h3>' +
     '<div class="chips"><span>Battleship</span><span>Reversi</span><span>Air Hockey</span><span>Pool</span><span>Your game?</span></div>' +
