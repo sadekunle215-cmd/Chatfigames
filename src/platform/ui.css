@@ -119,3 +119,7 @@ html, body { overscroll-behavior: none; }
 /* game cards: keep the PLAY button clear of the artwork */
 .card.gcard { min-height:164px; }
 .gart { width:104px; height:104px; top:10px; }
+
+/* hero chips: center icon with label */
+.hero .steps span { display: inline-flex; align-items: center; gap: 7px; line-height: 1; }
+.hero .steps span svg { display: block; flex: none; width: 16px; height: 16px; }
