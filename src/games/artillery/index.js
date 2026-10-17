@@ -38,6 +38,24 @@ export default {
       scene: Arena,
       callbacks: { preBoot: (g) => g.registry.set('opts', opts || {}) },
     });
-    return { destroy: () => game.destroy(true) };
+    const wake = () => {
+      setTimeout(() => {
+        try {
+          if (game.onFocus) game.onFocus();
+          if (game.loop && game.loop.resume) game.loop.resume();
+          if (game.scale) game.scale.refresh();
+        } catch (_) {}
+      }, 250);
+    };
+    const evs = ['resize', 'orientationchange', 'focus'];
+    evs.forEach((e) => window.addEventListener(e, wake));
+    document.addEventListener('fullscreenchange', wake);
+    return {
+      destroy: () => {
+        evs.forEach((e) => window.removeEventListener(e, wake));
+        document.removeEventListener('fullscreenchange', wake);
+        game.destroy(true);
+      },
+    };
   },
 };
